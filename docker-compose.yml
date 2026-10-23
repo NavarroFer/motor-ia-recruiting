@@ -1,0 +1,17 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: motor
+      POSTGRES_PASSWORD: motor
+      POSTGRES_DB: motor
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U motor"]
+      interval: 3s
+      retries: 20
+volumes:
+  pgdata:
