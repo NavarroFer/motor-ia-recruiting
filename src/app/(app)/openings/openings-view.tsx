@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-interface O { id: string; title: string; status: "open" | "closed"; created_at: string; matches: number; shortlisted: number; selected: number; requirements: Requirements }
+interface O { id: string; title: string; status: "open" | "closed"; created_at: string; matches: number; shortlisted: number; selected: number; new_alerts: number; requirements: Requirements }
 
 export function OpeningsView({ t, lang, canEdit }: { t: Dict; lang: Lang; canEdit: boolean }) {
   const router = useRouter();
@@ -56,6 +56,7 @@ export function OpeningsView({ t, lang, canEdit }: { t: Dict; lang: Lang; canEdi
               <span><b className="font-display text-lg">{o.matches}</b> <span className="text-muted-foreground">{t.open.matches}</span></span>
               <span><b className="font-display text-lg">{o.shortlisted}</b> <span className="text-muted-foreground">{t.open.shortlisted}</span></span>
               <span><b className="font-display text-lg">{o.selected}</b> <span className="text-muted-foreground">{t.open.selected}</span></span>
+              {o.new_alerts > 0 && <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">{o.new_alerts} {t.learn.newAlerts}</span>}
             </div>
             <div className="text-xs text-muted-foreground">{t.open.created} {new Date(o.created_at).toLocaleDateString(loc)}</div>
           </Link>

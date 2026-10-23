@@ -162,6 +162,20 @@ function lexicalSimilarity(query: string, c: CandRow): number {
 }
 
 // ---------- 3. Buscar ----------
+/** Ids de candidatos que cumplen los obligatorios (sin embeddings ni tokens). Lo usa el aprendizaje por decisiones. */
+export async function meetingMandatory(tenantId: string, req: Requirements, ids?: string[]): Promise<string[]> {
+  const rows = await q<CandRow>(
+    `SELECT c.id, c.headline, c.seniority, c.total_years, c.country, c.work_mode, c.summary, c.leadership, c.languages,
+            (SELECT json_agg(json_build_object('skill', s.skill, 'years', s.years) ORDER BY s.years DESC)
+               FROM candidate_skills s WHERE s.candidate_id = c.id) AS skills,
+            NULL::float8 AS distance
+       FROM candidates c
+      WHERE c.tenant_id = $1 ${ids ? "AND c.id = ANY($2::uuid[])" : ""}`,
+    ids ? [tenantId, ids] : [tenantId],
+  );
+  return rows.filter((c) => req.mandatory.every((r) => check(c, r, true).status !== "unmet")).map((c) => c.id);
+}
+
 export async function search(opts: {
   tenantId: string;
   userId: string;

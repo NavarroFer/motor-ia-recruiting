@@ -12,7 +12,9 @@ export const GET = handle(async () => {
     `SELECT o.id, o.title, o.status, o.created_at, o.closed_at, o.retention_until, o.requirements,
             s.result_count AS matches,
             (SELECT COUNT(*) FROM decisions d WHERE d.search_id = o.search_id AND d.status = 'shortlisted')::int AS shortlisted,
-            (SELECT COUNT(*) FROM decisions d WHERE d.search_id = o.search_id AND d.status = 'selected')::int AS selected
+            (SELECT COUNT(*) FROM decisions d WHERE d.search_id = o.search_id AND d.status = 'selected')::int AS selected,
+            (SELECT COUNT(*) FROM opening_alerts a WHERE a.opening_id = o.id AND a.seen_at IS NULL
+                AND NOT EXISTS (SELECT 1 FROM decisions d WHERE d.search_id = o.search_id AND d.candidate_id = a.candidate_id))::int AS new_alerts
        FROM openings o JOIN searches s ON s.id = o.search_id
       WHERE o.tenant_id = $1
       ORDER BY (o.status = 'open') DESC, o.created_at DESC`,

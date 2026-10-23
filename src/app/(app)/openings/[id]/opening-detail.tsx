@@ -71,7 +71,7 @@ export function OpeningDetail({ id, t, lang, canEdit }: { id: string; t: Dict; l
       <RequirementsEditor reqs={reqs} t={t} readOnly={!canEdit || closed} onChange={(r) => { setReqs(r); setDirty(true); }}
         footer={<SearchInfo data={ranking} t={t} lang={lang} action={dirty ? <Button size="sm" disabled={busy} onClick={() => patch({ requirements: reqs })}>{t.open.save}</Button> : null} />} />
 
-      <ResultsBoard key={ranking.durationMs + ranking.results.length} data={ranking} t={t} lang={lang} canDecide={canEdit} locked={closed} />
+      <ResultsBoard key={ranking.durationMs + ranking.results.length} data={ranking} t={t} lang={lang} canDecide={canEdit} locked={closed} openingId={opening.id} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { embed } from "@/lib/ai/embeddings";
 import { EXTRACT_SYSTEM, EXTRACT_TOOL, PROMPT_VERSION, type ExtractedProfile } from "@/lib/ai/prompts";
 import { MODELS } from "@/lib/pricing";
 import { canSpend } from "@/lib/usage";
+import { alertOpeningsForCandidate } from "@/lib/learning";
 import { anonymize, type Pii } from "@/lib/pipeline/anonymize";
 import { extractText, MAX_CHARS } from "@/lib/pipeline/extract";
 import { readFile } from "@/lib/pipeline/storage";
@@ -176,6 +177,14 @@ export async function processDocument(documentId: string): Promise<ProcessResult
     // 5. Indexar
     const saved = await saveCandidate({ tenantId: doc.tenant_id, documentId: doc.id, profile, pii, embedding: vector, sourceHash: doc.sha256 });
     await setStatus(doc.id, saved.duplicateOf ? "duplicate" : "indexed");
+    // Aprendizaje: avisa a las vacantes donde este perfil se parece a lo que ya eligieron (no gasta tokens)
+    if (vector) {
+      try {
+        await alertOpeningsForCandidate(doc.tenant_id, saved.candidateId);
+      } catch (e) {
+        console.warn("[pipeline] alertas de vacantes:", e instanceof Error ? e.message : e);
+      }
+    }
     return { ok: true, ...saved };
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 500) : String(e);

@@ -114,6 +114,16 @@ CREATE TABLE IF NOT EXISTS openings (
 );
 ALTER TABLE searches ADD COLUMN IF NOT EXISTS opening_id uuid;
 
+-- Avisos de "CV nuevo parecido a tus elegidos" por vacante (aprendizaje por decisiones)
+CREATE TABLE IF NOT EXISTS opening_alerts (
+  opening_id   uuid NOT NULL REFERENCES openings(id) ON DELETE CASCADE,
+  candidate_id uuid NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  similarity   real NOT NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  seen_at      timestamptz,
+  PRIMARY KEY (opening_id, candidate_id)
+);
+
 -- Caché de explicaciones por (búsqueda, candidato)
 CREATE TABLE IF NOT EXISTS explanations (
   search_id    uuid NOT NULL REFERENCES searches(id) ON DELETE CASCADE,

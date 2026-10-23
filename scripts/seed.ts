@@ -21,7 +21,7 @@ export const DEMO_PASSWORD = "demo1234";
 
 async function main() {
   if (args.has("--reset")) {
-    await q(`TRUNCATE audit_log, usage, jobs, decisions, explanations, openings, searches, candidate_pii, candidate_skills,
+    await q(`TRUNCATE audit_log, usage, jobs, decisions, explanations, opening_alerts, openings, searches, candidate_pii, candidate_skills,
              candidates, documents, users, tenants, settings RESTART IDENTITY CASCADE`);
     console.log("Base vaciada.");
   }

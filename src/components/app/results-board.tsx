@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Check, ChevronDown, ChevronRight, CircleHelp, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, CircleHelp, Sparkles, X, Lightbulb } from "lucide-react";
 import type { Dict, Lang } from "@/lib/i18n";
 import type { ReqCheck, Result, SearchOutput } from "@/lib/search";
+import type { SuggestionsOutput } from "@/lib/learning";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,7 +15,9 @@ export type Decision = "selected" | "shortlisted" | "discarded";
 export type Explanation = { match: string[]; gaps: string[]; summary: string; by: "ai" | "rules" | "cache" };
 
 /** Tablero de resultados: lo usan la búsqueda libre y el detalle de una vacante. */
-export function ResultsBoard({ data, t, lang, canDecide, locked }: { data: SearchOutput; t: Dict; lang: Lang; canDecide: boolean; locked?: boolean }) {
+export function ResultsBoard({ data, t, lang, canDecide, locked, openingId }: { data: SearchOutput; t: Dict; lang: Lang; canDecide: boolean; locked?: boolean; openingId?: string }) {
+  const [sugg, setSugg] = useState<SuggestionsOutput | null>(null);
+  const [tick, setTick] = useState(0);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [expl, setExpl] = useState<Record<string, Explanation | "loading">>({});
   const [tab, setTab] = useState<"all" | Decision>("all");
@@ -45,12 +48,21 @@ export function ResultsBoard({ data, t, lang, canDecide, locked }: { data: Searc
     return () => { alive = false; };
   }, [data, lang]);
 
+  // Aprendizaje por decisiones (solo vacantes): se recalcula después de cada decisión
+  useEffect(() => {
+    if (!openingId) return;
+    let alive = true;
+    fetch(`/api/openings/${openingId}/suggestions`).then((r) => (r.ok ? r.json() : null)).then((j) => alive && setSugg(j));
+    return () => { alive = false; };
+  }, [openingId, tick]);
+
   const decide = async (ids: string[], status: Decision | "none", opts?: { againstAi?: boolean; reason?: string }) => {
     const res = await fetch("/api/decisions", {
       method: "POST",
       body: JSON.stringify({ searchId: data.searchId, candidateIds: ids, status, againstAi: !!opts?.againstAi, reason: opts?.reason }),
     });
     if (!res.ok) return;
+    setTick((n) => n + 1);
     setDecisions((d) => {
       const n = { ...d };
       for (const id of ids) { if (status === "none") delete n[id]; else n[id] = status; }
@@ -67,6 +79,10 @@ export function ResultsBoard({ data, t, lang, canDecide, locked }: { data: Searc
 
   return (
     <>
+      {openingId && sugg && !locked && (
+        <SuggestionsBox s={sugg} t={t} canDecide={decideAllowed} onOpen={setPanel}
+          onShortlist={(id) => decide([id], "shortlisted")} />
+      )}
       <div className="flex gap-1 border-b">
         {(["all", "shortlisted", "selected", "discarded"] as const).map((k) => (
           <button key={k} onClick={() => setTab(k)} className={cn("-mb-px border-b-2 px-3 py-2 text-sm", tab === k ? "border-primary font-medium" : "border-transparent text-muted-foreground")}>
@@ -185,6 +201,45 @@ function ResultCard({ r, rank, t, expl, decision, canDecide, onAction, onOpen, c
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function SuggestionsBox({ s, t, canDecide, onOpen, onShortlist }: {
+  s: SuggestionsOutput; t: Dict; canDecide: boolean; onOpen: (id: string) => void; onShortlist: (id: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 font-medium"><Lightbulb className="size-4 text-primary" /> {t.learn.title}</div>
+        <Badge variant="muted">{t.learn.tag}</Badge>
+      </div>
+      {!s.ready && (
+        <p className="text-sm text-muted-foreground">
+          {s.reason === "few_decisions" ? t.learn.few.replace("{n}", String(s.needed)).replace("{k}", String(s.positives)) : t.learn.noVectors}
+        </p>
+      )}
+      {s.ready && s.suggestions.length === 0 && <p className="text-sm text-muted-foreground">{t.learn.empty}</p>}
+      {s.ready && s.suggestions.length > 0 && (
+        <ul className="flex flex-col divide-y rounded-md border bg-card">
+          {s.suggestions.map((x) => (
+            <li key={x.candidateId} className="flex items-center gap-3 px-3 py-2">
+              <div className="w-14 shrink-0 text-center">
+                <div className="font-display text-lg font-semibold">{x.similarity}%</div>
+                <div className="text-[10px] uppercase text-muted-foreground">{t.learn.similar}</div>
+              </div>
+              <button onClick={() => onOpen(x.candidateId)} className="min-w-0 flex-1 text-left">
+                <div className="flex items-center gap-2 font-medium hover:underline">
+                  {x.headline} {x.isNew && <Badge>{t.learn.isNew}</Badge>}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">{t.learn.like}: {x.likePositives.join(" · ")}</div>
+              </button>
+              {canDecide && <Button size="sm" variant="outline" onClick={() => onShortlist(x.candidateId)}>{t.search.shortlist}</Button>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs text-muted-foreground">{t.learn.note}</p>
     </div>
   );
 }
