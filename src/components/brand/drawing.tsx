@@ -42,7 +42,7 @@ export function Drawing({ name, tone = "green", className, delay = 0, spread = 0
       data-in={assemble ? undefined : ""}
       onMouseEnter={replayOnHover ? replay : undefined}
       className={cn("wt-assemble block h-auto select-none overflow-visible", className)}
-      style={{ ...TONES[tone], "--wt-delay": `${delay}s`, "--wt-spread": `${spread}s` } as React.CSSProperties}
+      style={{ ...TONES[tone], "--wt-delay": `${delay}s`, "--wt-spread": `${spread}s` } as unknown as React.CSSProperties}
       dangerouslySetInnerHTML={{ __html: d.body }} />
   );
 }
