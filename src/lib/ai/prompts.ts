@@ -130,6 +130,34 @@ export const EXPLAIN_TOOL: ToolDef = {
   },
 };
 
+// ---------- 4. Guía de entrevista (al agendar) ----------
+export const GUIDE_SYSTEM = `You prepare a recruiter for a job interview with an anonymized candidate, in the requested language.
+- Write 4 or 5 short, open questions answerable from professional experience.
+- Prioritize requirements the CV does not prove (status "unmet" or "unknown"); add one question that probes the strongest evidence for a must-have.
+- verifies: the requirement label the question checks.
+- In Spanish, address the candidate with Rioplatense "vos" ("contame", "¿trabajaste...?"), like the product UI.
+- Never ask about age, gender, nationality, ethnicity, health, religion or family status. Never suggest a hiring decision: the recruiter decides.
+Always answer by calling the tool.`;
+
+export const GUIDE_TOOL: ToolDef = {
+  name: "interview_guide",
+  description: "Questions for the recruiter to verify the candidate during the interview.",
+  input_schema: {
+    type: "object",
+    properties: {
+      questions: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { q: { type: "string" }, verifies: { type: "string" } },
+          required: ["q", "verifies"],
+        },
+      },
+    },
+    required: ["questions"],
+  },
+};
+
 // ---------- Tipos ----------
 export interface ExtractedProfile {
   headline: string;
@@ -163,4 +191,9 @@ export interface Explanation {
   match: string[];
   gaps: string[];
   summary: string;
+}
+
+export interface GuideQuestion {
+  q: string;
+  verifies: string | null;
 }

@@ -4,6 +4,7 @@ import { one, q } from "@/lib/db";
 import { apiUser, can } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { body, fail, handle, ok, unauthorized } from "@/lib/http";
+import { getLang } from "@/lib/i18n";
 import { emitDecision } from "@/lib/webhooks";
 
 // La decisión es SIEMPRE humana. Si contradice a la IA (preseleccionar a alguien marcado
@@ -62,9 +63,10 @@ export const POST = handle(async (req: Request) => {
   if (input.status === "shortlisted" || input.status === "selected") {
     const event = input.status === "selected" ? "candidate.selected" : "candidate.shortlisted";
     const origin = new URL(req.url).origin;
+    const lang = await getLang(); // la guía de entrevista sale en el idioma de la UI
     after(() => emitDecision({
       event, user, searchId: input.searchId, candidateIds: input.candidateIds, reason: input.reason, againstAi: input.againstAi,
-      interview: input.interview, origin,
+      interview: input.interview, lang, origin,
     }));
   }
   return ok({ ok: true });

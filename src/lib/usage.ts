@@ -1,7 +1,7 @@
 import { one, q } from "@/lib/db";
 import { apiEnabled } from "@/lib/settings";
 
-export type UsageKind = "ingest" | "ingest_vision" | "query_parse" | "explain" | "embedding";
+export type UsageKind = "ingest" | "ingest_vision" | "query_parse" | "explain" | "interview_guide" | "embedding";
 
 export async function recordUsage(u: {
   tenantId: string;

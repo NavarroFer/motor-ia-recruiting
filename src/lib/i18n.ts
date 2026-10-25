@@ -84,7 +84,7 @@ const en = {
     monthly: "Monthly budget", edit: "Edit budget", cancel: "Cancel", resets: "Budget resets {date} · {v} remaining", reached: "Budget reached. CVs will remain queued.", high: "Over 80% of the monthly budget is used.",
     queueTitle: "Processing queue", waitBudget: "CVs waiting for budget", waitApi: "CVs waiting for the API", waitQueue: "CVs in queue", helpBudget: "Increase the limit to resume processing.", helpApi: "Resume model calls to process them.", helpQueue: "Process them one by one, or turn on automatic processing.", increase: "Increase budget",
     usageTitle: "Usage breakdown", operation: "Operation", tokensCol: "Tokens", costCol: "Cost", callsN: "{n} calls", inOut: "in {i} · out {o}", noCalls: "No model calls this month yet.",
-    kinds: { ingest: "CV ingestion", ingest_vision: "CV ingestion (image)", query_parse: "Candidate searches", explain: "Match explanations", embedding: "Embeddings" },
+    kinds: { ingest: "CV ingestion", ingest_vision: "CV ingestion (image)", query_parse: "Candidate searches", explain: "Match explanations", interview_guide: "Interview guides", embedding: "Embeddings" },
     live: "Live processing", liveSub: "Run a single CV through the pipeline.", limits: "Uses current API and budget limits.",
     steps: {
       received: { todo: "Waiting in queue", doing: "Taking it from the queue…", done: "Received" },
@@ -190,7 +190,7 @@ const es: typeof en = {
     monthly: "Presupuesto mensual", edit: "Editar presupuesto", cancel: "Cancelar", resets: "Se renueva el {date} · quedan {v}", reached: "Presupuesto agotado. Los CVs quedan en cola.", high: "Ya se usó más del 80% del presupuesto mensual.",
     queueTitle: "Cola de procesamiento", waitBudget: "CVs esperando presupuesto", waitApi: "CVs esperando la API", waitQueue: "CVs en cola", helpBudget: "Subí el límite para retomar el procesamiento.", helpApi: "Reanudá las llamadas para procesarlos.", helpQueue: "Procesalos de a uno o activá el procesamiento automático.", increase: "Subir presupuesto",
     usageTitle: "Detalle de consumo", operation: "Operación", tokensCol: "Tokens", costCol: "Costo", callsN: "{n} llamadas", inOut: "entrada {i} · salida {o}", noCalls: "Todavía no hay llamadas a modelos este mes.",
-    kinds: { ingest: "Ingesta de CVs", ingest_vision: "Ingesta de CVs (imagen)", query_parse: "Búsquedas de candidatos", explain: "Explicaciones de match", embedding: "Embeddings" },
+    kinds: { ingest: "Ingesta de CVs", ingest_vision: "Ingesta de CVs (imagen)", query_parse: "Búsquedas de candidatos", explain: "Explicaciones de match", interview_guide: "Guías de entrevista", embedding: "Embeddings" },
     live: "Procesamiento en vivo", liveSub: "Pasá un solo CV por el pipeline.", limits: "Respeta la API y el presupuesto actuales.",
     steps: {
       received: { todo: "Esperando en cola", doing: "Tomándolo de la cola…", done: "Recibido" },

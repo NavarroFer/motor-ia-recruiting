@@ -166,7 +166,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_log (tenant_id, created_at 
 CREATE TABLE IF NOT EXISTS usage (
   id            bigserial PRIMARY KEY,
   tenant_id     uuid NOT NULL,
-  kind          text NOT NULL,          -- ingest | ingest_vision | query_parse | explain | embedding
+  kind          text NOT NULL,          -- ingest | ingest_vision | query_parse | explain | interview_guide | embedding
   model         text NOT NULL,
   input_tokens  integer NOT NULL DEFAULT 0,
   output_tokens integer NOT NULL DEFAULT 0,

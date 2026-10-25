@@ -41,8 +41,14 @@ Si `npm install` se hizo en otra máquina, borrá `node_modules` y reinstalá (h
 
 ## Slack y Google Meet con n8n (opcional)
 
-Al preseleccionar o seleccionar, la app manda un evento por webhook a n8n, sin PII: perfil anonimizado y links a la ficha.
-Seleccionar abre "Agendar entrevista": con día y horario, n8n crea el evento en Google Calendar con link de Meet y avisa en Slack.
+La app manda eventos por webhook a n8n con el perfil anonimizado y links a la ficha:
+- **CV nuevo que encaja**: al indexar un CV parecido a los elegidos de una vacante abierta (y que cumple obligatorios), aviso en Slack.
+- **Preselección**: aviso en Slack.
+- **Selección con entrevista**: el reclutador elige día y horario; n8n crea el evento con Google Meet, invita al candidato
+  (Google le manda la invitación) y avisa en Slack con una **guía de entrevista**: preguntas para verificar lo que el CV no
+  demuestra, redactadas por Haiku (o por reglas con la API apagada). La guía es solo para el equipo: no va en la invitación.
+
+El email del candidato es el único dato personal que sale, solo al agendar y con registro en la auditoría (`invite_candidate`).
 
 ```bash
 docker compose --profile n8n up -d     # n8n en http://localhost:5678
@@ -52,6 +58,10 @@ docker compose exec n8n n8n import:workflow --input=/files/decisiones-slack-cale
 1. En n8n, crear las credenciales "Slack API" (bot token con `chat:write` y `chat:write.public`) y "Google Calendar OAuth2 API"
    (redirect URI `http://localhost:5678/rest/oauth2-credential/callback`), asignarlas a los nodos y publicar el workflow.
 2. En `.env.local`: `N8N_WEBHOOK_URL=http://localhost:5678/webhook/motor-ia-decisions`. Sin esa variable no se envía nada.
+   Para la demo, `CANDIDATE_EMAIL_OVERRIDE=<casilla>` redirige las invitaciones (los candidatos sintéticos tienen emails falsos).
+   Tiene que ser distinta de la cuenta de Google conectada en n8n: Google no le manda invitación al organizador.
+3. Para ver el aviso de CV nuevo: la vacante necesita 2 elegidos con vector (`npm run seed -- --reset --embed`, preseleccionar 2
+   en "Senior Python Backend Engineer") y después procesar `camila-duarte.pdf` en vivo.
 
 ## Estructura
 

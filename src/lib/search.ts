@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { one, q, toVector } from "@/lib/db";
 import { callTool } from "@/lib/ai/anthropic";
 import { embed } from "@/lib/ai/embeddings";
-import { EXPLAIN_SYSTEM, EXPLAIN_TOOL, QUERY_SYSTEM, QUERY_TOOL, type Explanation, type Requirement, type Requirements } from "@/lib/ai/prompts";
+import {
+  EXPLAIN_SYSTEM, EXPLAIN_TOOL, GUIDE_SYSTEM, GUIDE_TOOL, QUERY_SYSTEM, QUERY_TOOL,
+  type Explanation, type GuideQuestion, type Requirement, type Requirements,
+} from "@/lib/ai/prompts";
 import { canSpend } from "@/lib/usage";
 
 // ---------- Normalización de skills ----------
@@ -378,4 +381,47 @@ export async function openingsForCandidate(tenantId: string, candidateId: string
       decision: o.decision,
     };
   }).sort((a, b) => Number(b.meetsMandatory) - Number(a.meetsMandatory) || b.fit - a.fit);
+}
+
+// ---------- 6. Guía de entrevista: preguntas para verificar lo que el CV no demuestra ----------
+// Por reglas (0 tokens) sale de los requisitos sin evidencia. Con la API activa y presupuesto, Haiku la redacta
+// sobre el perfil ANONIMIZADO. Es para el reclutador: nunca viaja en la invitación al candidato.
+export async function interviewGuide(opts: { tenantId: string; searchId: string; candidateId: string; lang: "en" | "es" }): Promise<{ questions: GuideQuestion[]; by: "ai" | "rules" }> {
+  const s = await one<{ requirements: Requirements }>("SELECT requirements FROM searches WHERE id = $1 AND tenant_id = $2", [opts.searchId, opts.tenantId]);
+  const c = await loadCand(opts.tenantId, opts.candidateId);
+  if (!s || !c) return { questions: [], by: "rules" };
+  const checks = [
+    ...s.requirements.mandatory.map((r) => check(c, r, true)),
+    ...s.requirements.nice_to_have.map((r) => check(c, { type: "skill", skill: r.skill ?? r.label, label: r.label }, false)),
+  ];
+  const rules = rulesGuide(checks, opts.lang);
+  if (!(await canSpend(opts.tenantId)).ok) return { questions: rules, by: "rules" };
+  try {
+    const out = await callTool<{ questions: GuideQuestion[] }>({
+      tenantId: opts.tenantId, kind: "interview_guide", searchId: opts.searchId,
+      system: GUIDE_SYSTEM, tool: GUIDE_TOOL, maxTokens: 500,
+      content: [{ type: "text", text: `Language: ${opts.lang === "es" ? "Spanish" : "English"}\nRequirement checks: ${JSON.stringify(checks)}\nCandidate profile: ${JSON.stringify(c.profile_json)}` }],
+    });
+    return out.questions?.length ? { questions: out.questions.slice(0, 5), by: "ai" } : { questions: rules, by: "rules" };
+  } catch (e) {
+    console.warn("[guide] sin IA, guía por reglas:", e instanceof Error ? e.message.slice(0, 200) : e);
+    return { questions: rules, by: "rules" };
+  }
+}
+
+function rulesGuide(checks: ReqCheck[], lang: "en" | "es"): GuideQuestion[] {
+  const es = lang === "es";
+  const open = checks.filter((x) => x.status !== "met").sort((a, b) => Number(b.mandatory) - Number(a.mandatory)).slice(0, 4);
+  const questions = open.map((x) => ({
+    q: es ? `¿Podés contarme una experiencia concreta con ${x.label}? ¿Cuánto tiempo y con qué responsabilidad?`
+      : `Can you walk me through concrete experience with ${x.label}? For how long and with what responsibility?`,
+    verifies: x.label,
+  }));
+  const strong = checks.find((x) => x.status === "met" && x.mandatory);
+  if (strong) questions.push({
+    q: es ? `En tu CV aparece ${strong.label}: ¿cuál fue el problema más difícil que resolviste con eso?`
+      : `Your CV shows ${strong.label}: what was the hardest problem you solved with it?`,
+    verifies: strong.label,
+  });
+  return questions.slice(0, 5);
 }

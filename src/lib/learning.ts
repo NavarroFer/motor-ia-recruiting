@@ -1,6 +1,7 @@
 import { q } from "@/lib/db";
 import type { Requirements } from "@/lib/ai/prompts";
-import { meetingMandatory } from "@/lib/search";
+import { meetingMandatory, openingsForCandidate } from "@/lib/search";
+import { emitOpeningMatch } from "@/lib/webhooks";
 
 /**
  * Aprendizaje a partir de las decisiones humanas (sin tokens: solo vectores que ya existen).
@@ -98,23 +99,30 @@ export async function markAlertsSeen(openingId: string) {
 
 /** Al indexar un CV nuevo: avisa a las vacantes abiertas donde se parece a lo que ya eligieron y cumple obligatorios. */
 export async function alertOpeningsForCandidate(tenantId: string, candidateId: string) {
-  const openings = await q<{ id: string; search_id: string; requirements: Requirements }>(
-    "SELECT id, search_id, requirements FROM openings WHERE tenant_id = $1 AND status = 'open'",
+  const openings = await q<{ id: string; title: string; search_id: string; requirements: Requirements }>(
+    "SELECT id, title, search_id, requirements FROM openings WHERE tenant_id = $1 AND status = 'open'",
     [tenantId],
   );
-  let alerts = 0;
+  const created: { id: string; title: string; similarity: number }[] = [];
   for (const op of openings) {
     const p = await profile(op.search_id);
     if (p.withVector < MIN_POSITIVES || p.floor === null) continue;
     const [row] = await rank(tenantId, op.search_id, [candidateId]);
     if (!row || Number(row.sim_pos) < p.floor * ALERT_RATIO) continue;
     if (!(await meetingMandatory(tenantId, op.requirements, [candidateId])).length) continue;
-    await q(
+    const inserted = await q(
       `INSERT INTO opening_alerts (opening_id, candidate_id, similarity) VALUES ($1,$2,$3)
-       ON CONFLICT (opening_id, candidate_id) DO NOTHING`,
+       ON CONFLICT (opening_id, candidate_id) DO NOTHING RETURNING opening_id`,
       [op.id, candidateId, Number(row.sim_pos)],
     );
-    alerts++;
+    if (inserted.length) created.push({ id: op.id, title: op.title, similarity: Number(row.sim_pos) });
   }
-  return alerts;
+  // Aviso proactivo (Slack vía n8n) solo para alertas nuevas: un reproceso no repite el aviso
+  if (created.length) {
+    const fits = await openingsForCandidate(tenantId, candidateId);
+    for (const op of created) {
+      await emitOpeningMatch({ tenantId, opening: { id: op.id, title: op.title }, candidateId, similarity: op.similarity, fit: fits.find((f) => f.openingId === op.id) });
+    }
+  }
+  return created.length;
 }
