@@ -39,6 +39,20 @@ Si `npm install` se hizo en otra máquina, borrá `node_modules` y reinstalá (h
 6. Vacantes › "Senior Python Backend Engineer": preseleccionar 2 candidatos → aparece "Sugeridos por tus elecciones" (perfiles parecidos a los elegidos, sin gastar tokens). Al procesar un CV nuevo que se parezca, la vacante muestra "nuevos parecidos".
 7. Entrar como visualizador → la ficha no muestra contacto y no puede decidir.
 
+## Slack y Google Meet con n8n (opcional)
+
+Al preseleccionar o seleccionar, la app manda un evento por webhook a n8n, sin PII: perfil anonimizado y links a la ficha.
+Seleccionar abre "Agendar entrevista": con día y horario, n8n crea el evento en Google Calendar con link de Meet y avisa en Slack.
+
+```bash
+docker compose --profile n8n up -d     # n8n en http://localhost:5678
+docker compose exec n8n n8n import:workflow --input=/files/decisiones-slack-calendar.json
+```
+
+1. En n8n, crear las credenciales "Slack API" (bot token con `chat:write` y `chat:write.public`) y "Google Calendar OAuth2 API"
+   (redirect URI `http://localhost:5678/rest/oauth2-credential/callback`), asignarlas a los nodos y publicar el workflow.
+2. En `.env.local`: `N8N_WEBHOOK_URL=http://localhost:5678/webhook/motor-ia-decisions`. Sin esa variable no se envía nada.
+
 ## Estructura
 
 ```

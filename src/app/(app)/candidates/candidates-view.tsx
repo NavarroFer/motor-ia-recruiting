@@ -35,14 +35,14 @@ function modeOf(t: Dict, m: string | null): string | null {
 
 const cap = (s: string | null) => (s ? s[0].toUpperCase() + s.slice(1) : null);
 
-export function CandidatesView({ t, lang, canUpload = false, anonymized = false }: { t: Dict; lang: Lang; canUpload?: boolean; anonymized?: boolean }) {
+export function CandidatesView({ t, lang, canUpload = false, anonymized = false, initialPanel = null }: { t: Dict; lang: Lang; canUpload?: boolean; anonymized?: boolean; initialPanel?: string | null }) {
   const [list, setList] = useState<C[] | null>(null);
   const [namesVisible, setNamesVisible] = useState(!anonymized);
   const [filter, setFilter] = useState("");
   const [indexType, setIndexType] = useState<IndexFilter>("");
   const [country, setCountry] = useState("");
   const [page, setPage] = useState(0);
-  const [panel, setPanel] = useState<string | null>(null);
+  const [panel, setPanel] = useState<string | null>(initialPanel);
   const loc = lang === "es" ? "es-AR" : "en-US";
 
   useEffect(() => {

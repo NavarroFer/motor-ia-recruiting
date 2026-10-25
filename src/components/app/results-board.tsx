@@ -1,6 +1,6 @@
 "use client";
 import { Fragment, useEffect, useId, useState } from "react";
-import { Lightbulb } from "lucide-react";
+import { CalendarClock, Lightbulb } from "lucide-react";
 import type { Dict, Lang } from "@/lib/i18n";
 import type { ReqCheck, Result, SearchOutput } from "@/lib/search";
 import type { SuggestionsOutput } from "@/lib/learning";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Illo } from "@/components/brand/brand";
 import { BrandIcon } from "@/components/brand/icons";
 import { MetricNumber } from "@/components/brand/metric-number";
@@ -19,6 +21,16 @@ export type Explanation = { match: string[]; gaps: string[]; summary: string; by
 
 const DECISIONS = ["selected", "shortlisted", "discarded"] as const;
 const DECISION_BADGE = { selected: "selected", shortlisted: "default", discarded: "destructive" } as const;
+const DURATIONS = [30, 45, 60] as const;
+
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Sugerencia inicial del diálogo: próximo día hábil a las 10:00, en la zona del navegador. */
+function nextSlot() {
+  const d = new Date();
+  do d.setDate(d.getDate() + 1); while (d.getDay() === 0 || d.getDay() === 6);
+  return { date: ymd(d), time: "10:00", minutes: 45 };
+}
 
 /** Tablero de resultados: lo usan la búsqueda libre y el detalle de una vacante. */
 export function ResultsBoard({ data, t, lang, canDecide, locked, openingId, emptyState }: {
@@ -39,16 +51,24 @@ export function ResultsBoard({ data, t, lang, canDecide, locked, openingId, empt
   const [reasonOpen, setReasonOpen] = useState(false);
   const [reasonText, setReasonText] = useState("");
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [interviews, setInterviews] = useState<Record<string, string>>({});
+  const [schedule, setSchedule] = useState<{ ids: string[]; againstAi: boolean; reason?: string } | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [slot, setSlot] = useState(nextSlot);
   const [busy, setBusy] = useState(false);
   const reasonId = useId();
+  const scheduleId = useId();
   const decideAllowed = canDecide && !locked;
+  const loc = lang === "es" ? "es-AR" : "en-US";
 
   // Decisiones previas (vacantes) + explicaciones del top 10 en segundo plano
   useEffect(() => {
     let alive = true;
     fetch(`/api/decisions?searchId=${data.searchId}`).then((r) => r.json()).then((j) => {
       if (!alive) return;
-      setDecisions(Object.fromEntries((j.decisions ?? []).map((d: { candidate_id: string; status: Decision }) => [d.candidate_id, d.status])));
+      const rows: { candidate_id: string; status: Decision; interview_at: string | null }[] = j.decisions ?? [];
+      setDecisions(Object.fromEntries(rows.map((d) => [d.candidate_id, d.status])));
+      setInterviews(Object.fromEntries(rows.filter((d) => d.interview_at).map((d) => [d.candidate_id, d.interview_at!])));
     });
     const queue = data.results.slice(0, 10).map((r) => r.candidateId);
     const worker = async () => {
@@ -86,10 +106,10 @@ export function ResultsBoard({ data, t, lang, canDecide, locked, openingId, empt
     return () => { alive = false; };
   }, [openingId, tick]);
 
-  const decide = async (ids: string[], status: Decision | "none", opts?: { againstAi?: boolean; reason?: string }) => {
+  const decide = async (ids: string[], status: Decision | "none", opts?: { againstAi?: boolean; reason?: string; interview?: { start: string; minutes: number } }) => {
     const res = await fetch("/api/decisions", {
       method: "POST",
-      body: JSON.stringify({ searchId: data.searchId, candidateIds: ids, status, againstAi: !!opts?.againstAi, reason: opts?.reason }),
+      body: JSON.stringify({ searchId: data.searchId, candidateIds: ids, status, againstAi: !!opts?.againstAi, reason: opts?.reason, interview: opts?.interview }),
     });
     if (!res.ok) return;
     setTick((n) => n + 1);
@@ -98,7 +118,33 @@ export function ResultsBoard({ data, t, lang, canDecide, locked, openingId, empt
       for (const id of ids) { if (status === "none") delete n[id]; else n[id] = status; }
       return n;
     });
+    // Cada decisión reemplaza a la anterior: sin entrevista nueva, la previa deja de valer
+    setInterviews((m) => {
+      const n = { ...m };
+      for (const id of ids) { if (opts?.interview) n[id] = opts.interview.start; else delete n[id]; }
+      return n;
+    });
   };
+  // Seleccionar abre el diálogo de agenda: el evento con Meet sale recién cuando el reclutador elige día y horario
+  const openSchedule = (ids: string[], extra?: { againstAi: boolean; reason: string }) => {
+    setSchedule({ ids, againstAi: extra?.againstAi ?? false, reason: extra?.reason });
+    setSlot(nextSlot());
+    setScheduleOpen(true);
+  };
+  const slotStart = slot.date && slot.time ? new Date(`${slot.date}T${slot.time}`) : null;
+  const slotValid = !!slotStart && !Number.isNaN(slotStart.getTime()) && slotStart.getTime() > Date.now();
+  const confirmSelect = async (withInterview: boolean) => {
+    if (!schedule) return;
+    setBusy(true);
+    await decide(schedule.ids, "selected", {
+      againstAi: schedule.againstAi, reason: schedule.reason,
+      interview: withInterview && slotValid ? { start: slotStart!.toISOString(), minutes: slot.minutes } : undefined,
+    });
+    setBusy(false);
+    setScheduleOpen(false);
+  };
+  const interviewLabel = (id: string) =>
+    interviews[id] ? new Date(interviews[id]).toLocaleString(loc, { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) : undefined;
   const failedText = (c: ReqCheck) => {
     const got = shortDetail(c);
     return got ? t.search.requiresShows.replace("{req}", c.label).replace("{got}", got) : t.search.requiresNone.replace("{req}", c.label);
@@ -112,6 +158,7 @@ export function ResultsBoard({ data, t, lang, canDecide, locked, openingId, empt
       setReasonOpen(true);
       return;
     }
+    if (status === "selected") return openSchedule([r.candidateId]);
     decide([r.candidateId], status);
   };
   const visible = (list: Result[]) => (tab === "all" ? list : list.filter((r) => decisions[r.candidateId] === tab));
@@ -167,7 +214,7 @@ export function ResultsBoard({ data, t, lang, canDecide, locked, openingId, empt
             )}
             {shown.map((r, i) => (
               <ResultCard key={r.candidateId} r={r} index={i} t={t} lang={lang} name={nameOf(r.candidateId)} avatar={avatarOf(r)}
-                expl={explOf(r.candidateId)} decision={decisions[r.candidateId]} canDecide={decideAllowed}
+                expl={explOf(r.candidateId)} decision={decisions[r.candidateId]} interview={interviewLabel(r.candidateId)} canDecide={decideAllowed}
                 onAction={(s) => onAction(r, s)} onOpen={() => setPanel(r.candidateId)} />
             ))}
           </div>
@@ -197,7 +244,7 @@ export function ResultsBoard({ data, t, lang, canDecide, locked, openingId, empt
               {visible(data.notMeeting).length === 0 && <li className="text-sm text-muted-foreground">{t.search.tabEmpty}</li>}
               {visible(data.notMeeting).map((r, i) => (
                 <IneligibleRow key={r.candidateId} r={r} index={i} t={t} name={nameOf(r.candidateId)} failed={failedOf(r)}
-                  decision={decisions[r.candidateId]} canDecide={decideAllowed}
+                  decision={decisions[r.candidateId]} interview={interviewLabel(r.candidateId)} canDecide={decideAllowed}
                   onAction={(s) => onAction(r, s)} onOpen={() => setPanel(r.candidateId)} />
               ))}
             </ul>
@@ -237,6 +284,11 @@ export function ResultsBoard({ data, t, lang, canDecide, locked, openingId, empt
             <Button variant="outline" className="min-w-28 justify-start" onClick={() => setReasonOpen(false)}>{t.search.cancel}</Button>
             <Button className="min-w-44 justify-start" disabled={!reasonText.trim() || busy} onClick={async () => {
               if (!reason) return;
+              if (reason.status === "selected") {
+                setReasonOpen(false);
+                openSchedule(reason.ids, { againstAi: true, reason: reasonText });
+                return;
+              }
               setBusy(true);
               await decide(reason.ids, reason.status, { againstAi: true, reason: reasonText });
               setBusy(false);
@@ -244,6 +296,40 @@ export function ResultsBoard({ data, t, lang, canDecide, locked, openingId, empt
             }}>
               {reason ? t.search.confirmException[reason.status] : t.search.confirm}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Seleccionar = agendar: con día y horario, n8n crea el evento con Google Meet y avisa por Slack */}
+      <Dialog open={scheduleOpen} onOpenChange={(o) => !o && setScheduleOpen(false)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl tracking-normal normal-case">{t.search.schedule.title}</DialogTitle>
+            <DialogDescription>{t.search.schedule.help}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="flex flex-col gap-2">
+              <label htmlFor={`${scheduleId}-date`} className="text-[13px] font-bold">{t.search.schedule.date}</label>
+              <Input id={`${scheduleId}-date`} type="date" min={ymd(new Date())} value={slot.date}
+                onChange={(e) => setSlot((s) => ({ ...s, date: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor={`${scheduleId}-time`} className="text-[13px] font-bold">{t.search.schedule.time}</label>
+              <Input id={`${scheduleId}-time`} type="time" step={900} value={slot.time}
+                onChange={(e) => setSlot((s) => ({ ...s, time: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor={`${scheduleId}-dur`} className="text-[13px] font-bold">{t.search.schedule.duration}</label>
+              <NativeSelect id={`${scheduleId}-dur`} value={slot.minutes} onChange={(e) => setSlot((s) => ({ ...s, minutes: Number(e.target.value) }))}>
+                {DURATIONS.map((m) => <option key={m} value={m}>{t.search.schedule.minutes.replace("{n}", String(m))}</option>)}
+              </NativeSelect>
+            </div>
+          </div>
+          {slot.date && slot.time && !slotValid && <p role="alert" className="text-[13px] text-destructive">{t.search.schedule.past}</p>}
+          <DialogFooter className="mt-2">
+            <Button variant="outline" className="min-w-28 justify-start" onClick={() => setScheduleOpen(false)}>{t.search.cancel}</Button>
+            <Button variant="outline" className="justify-start" disabled={busy} onClick={() => confirmSelect(false)}>{t.search.schedule.skip}</Button>
+            <Button className="min-w-44 justify-start" disabled={busy || !slotValid} onClick={() => confirmSelect(true)}>{t.search.schedule.confirm}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -334,9 +420,18 @@ function CheckItem({ c, t }: { c: ReqCheck; t: Dict }) {
   );
 }
 
-function ResultCard({ r, index, t, lang, name, avatar, expl, decision, canDecide, onAction, onOpen }: {
+/** Día y horario de la entrevista agendada al seleccionar. */
+function InterviewLine({ when, t }: { when: string; t: Dict }) {
+  return (
+    <p className="flex animate-wt-fade items-center gap-1.5 text-xs text-muted-foreground">
+      <CalendarClock aria-hidden className="size-3.5 shrink-0 text-primary" /> {t.search.schedule.at} · {when}
+    </p>
+  );
+}
+
+function ResultCard({ r, index, t, lang, name, avatar, expl, decision, interview, canDecide, onAction, onOpen }: {
   r: Result; index: number; t: Dict; lang: Lang; name: string | null; avatar: string; expl?: Explanation | "loading"; decision?: Decision;
-  canDecide: boolean; onAction: (s: Decision) => void; onOpen: () => void;
+  interview?: string; canDecide: boolean; onAction: (s: Decision) => void; onOpen: () => void;
 }) {
   const loc = lang === "es" ? "es-AR" : "en-US";
   const fmt = (n: number) => n.toLocaleString(loc, { maximumFractionDigits: 1 });
@@ -404,6 +499,7 @@ function ResultCard({ r, index, t, lang, name, avatar, expl, decision, canDecide
       <div className="flex flex-col gap-3 border-t pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-5">
         <ScoreBlock score={r.score} t={t} />
         <DecisionChip decision={decision} t={t} />
+        {decision === "selected" && interview && <InterviewLine when={interview} t={t} />}
         {canDecide && <ActionLinks decision={decision} onAction={onAction} t={t} />}
       </div>
     </article>
@@ -411,8 +507,8 @@ function ResultCard({ r, index, t, lang, name, avatar, expl, decision, canDecide
 }
 
 /** Fila del grupo "no cumple obligatorios" (01g): motivo concreto en rojo y acciones humanas. */
-function IneligibleRow({ r, index, t, name, failed, decision, canDecide, onAction, onOpen }: {
-  r: Result; index: number; t: Dict; name: string | null; failed: string[]; decision?: Decision; canDecide: boolean;
+function IneligibleRow({ r, index, t, name, failed, decision, interview, canDecide, onAction, onOpen }: {
+  r: Result; index: number; t: Dict; name: string | null; failed: string[]; decision?: Decision; interview?: string; canDecide: boolean;
   onAction: (s: Decision) => void; onOpen: () => void;
 }) {
   return (
@@ -422,6 +518,7 @@ function IneligibleRow({ r, index, t, name, failed, decision, canDecide, onActio
           {name ?? "…"} · {r.headline}
         </button>
         {failed.map((f) => <p key={f} className="mt-1 text-[13px] text-destructive"><span aria-hidden>×</span> {f}</p>)}
+        {decision === "selected" && interview && <div className="mt-1.5"><InterviewLine when={interview} t={t} /></div>}
       </div>
       <div className="flex flex-wrap items-center gap-4">
         {decision && <DecisionChip decision={decision} t={t} />}

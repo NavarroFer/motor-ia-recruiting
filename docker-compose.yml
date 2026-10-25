@@ -13,5 +13,23 @@ services:
       test: ["CMD-SHELL", "pg_isready -U motor"]
       interval: 3s
       retries: 20
+  # Automatizaciones (Slack, Google Calendar). Opcional: docker compose --profile n8n up -d
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.44.6
+    profiles: ["n8n"]
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost:5678/
+      GENERIC_TIMEZONE: America/Argentina/Buenos_Aires
+      TZ: America/Argentina/Buenos_Aires
+      N8N_DIAGNOSTICS_ENABLED: "false"
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8ndata:/home/node/.n8n
+      - ./integrations/n8n:/files:ro
 volumes:
   pgdata:
+  n8ndata:

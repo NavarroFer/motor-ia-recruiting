@@ -146,6 +146,9 @@ CREATE TABLE IF NOT EXISTS decisions (
   updated_at   timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (search_id, candidate_id)
 );
+-- Entrevista que el reclutador agenda al seleccionar (n8n crea el evento con Meet)
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS interview_at timestamptz;
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS interview_minutes smallint;
 
 CREATE TABLE IF NOT EXISTS audit_log (
   id           bigserial PRIMARY KEY,
