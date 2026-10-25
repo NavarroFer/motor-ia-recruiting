@@ -51,7 +51,7 @@ export async function getSession(): Promise<SessionUser | null> {
 /** Para páginas: redirige al login si no hay sesión o el rol no alcanza. */
 export async function requireUser(roles?: Role[]): Promise<SessionUser> {
   const user = await getSession();
-  if (!user) redirect("/login");
+  if (!user) redirect("/welcome");
   if (roles && !roles.includes(user.role)) redirect("/");
   return user;
 }

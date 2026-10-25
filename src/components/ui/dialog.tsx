@@ -18,11 +18,11 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & { showClose?: boolean }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-foreground/40 backdrop-blur-[1px] transition-opacity duration-150 data-closed:opacity-0 data-open:opacity-100" />
+      <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-forest/50 backdrop-blur-[1px] transition-opacity duration-150 data-closed:opacity-0 data-open:opacity-100" />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-card p-6 text-card-foreground shadow-xl ring-1 ring-foreground/10 transition-all duration-150 data-closed:scale-95 data-closed:opacity-0 data-open:scale-100 data-open:opacity-100 sm:max-h-[calc(100dvh-4rem)] sm:overflow-y-auto",
+          "fixed top-1/2 left-1/2 z-50 grid w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border bg-card p-6 text-card-foreground shadow-xl transition-all duration-150 data-closed:scale-95 data-closed:opacity-0 data-open:scale-100 data-open:opacity-100 sm:max-h-[calc(100dvh-4rem)] sm:overflow-y-auto",
           className,
         )}
         {...props}

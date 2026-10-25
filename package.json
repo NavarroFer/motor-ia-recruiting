@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "seed": "tsx scripts/seed.ts",
     "generate:cvs": "tsx scripts/generate-cvs.ts",
+    "build:drawings": "tsx scripts/build-drawings.ts",
     "costos": "python3 docs/costos.py",
     "check:api": "tsx scripts/check-api.ts",
     "bench": "tsx scripts/bench-search.ts"

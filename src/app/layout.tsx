@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { getLang } from "@/lib/i18n";
 
-export const metadata: Metadata = { title: "Motor IA Recruiting", description: "Demo: búsqueda de candidatos con IA" };
+export const metadata: Metadata = { title: "World Teams", description: "Global recruiting: la IA sugiere, las personas deciden." };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (

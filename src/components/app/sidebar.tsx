@@ -1,47 +1,84 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Briefcase, Contact, Gauge, LayoutDashboard, LogOut, Search, Upload, Users } from "lucide-react";
+import { LogOut } from "lucide-react";
 import type { Dict, Lang } from "@/lib/i18n";
 import type { SessionUser } from "@/lib/auth";
-import { LangSwitch } from "@/components/app/lang-switch";
+import { Wordmark } from "@/components/brand/brand";
+import { BrandIcon, type BrandIconName } from "@/components/brand/icons";
 import { cn } from "@/lib/utils";
 
-export function Sidebar({ user, t, lang }: { user: SessionUser; t: Dict; lang: Lang }) {
+export const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
+export function Sidebar({ user, tenant, t, lang }: { user: SessionUser; tenant: string; t: Dict; lang: Lang }) {
   const path = usePathname();
   const router = useRouter();
-  const items = [
-    { href: "/", label: t.nav.dashboard, icon: LayoutDashboard, show: true },
-    { href: "/openings", label: t.nav.openings, icon: Briefcase, show: true },
-    { href: "/search", label: t.nav.search, icon: Search, show: true },
-    { href: "/candidates", label: t.nav.candidates, icon: Contact, show: true },
-    { href: "/upload", label: t.nav.upload, icon: Upload, show: user.role !== "viewer" },
-    { href: "/admin/users", label: t.nav.users, icon: Users, show: user.role === "admin" },
-    { href: "/admin/usage", label: t.nav.usage, icon: Gauge, show: user.role === "admin" },
+  const main = [
+    { href: "/", label: t.nav.dashboard, icon: "computer" as BrandIconName, show: true },
+    { href: "/openings", label: t.nav.openings, icon: "windows" as BrandIconName, show: true },
+    { href: "/search", label: t.nav.search, icon: "cursor" as BrandIconName, show: true },
+    { href: "/candidates", label: t.nav.candidates, icon: "document" as BrandIconName, show: true },
+    { href: "/upload", label: t.nav.upload, icon: "disk" as BrandIconName, show: user.role !== "viewer" },
+  ];
+  const admin = [
+    { href: "/admin/users", label: t.nav.users, icon: "keys" as BrandIconName },
+    { href: "/admin/usage", label: t.nav.usage, icon: "hourglass" as BrandIconName },
   ];
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
   };
+  const setLang = async (l: Lang) => {
+    await fetch("/api/lang", { method: "POST", body: JSON.stringify({ lang: l }) });
+    router.refresh();
+  };
+  const item = (i: { href: string; label: string; icon: BrandIconName }) => {
+    const active = i.href === "/" ? path === "/" : path.startsWith(i.href);
+    return (
+      <Link key={i.href} href={i.href} aria-current={active ? "page" : undefined}
+        className={cn("group flex h-11 items-center gap-3 rounded-md px-3 text-[15px] transition-colors",
+          active ? "bg-cream font-bold text-forest" : "text-cream/90 hover:bg-white/8 hover:text-cream")}>
+        <BrandIcon name={i.icon} className={cn("size-5 transition-transform group-hover:-translate-y-px", !active && "opacity-85")} /> {i.label}
+      </Link>
+    );
+  };
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r bg-card px-3 py-5">
-      <div className="px-2 pb-6 font-display text-lg font-semibold">Motor IA<span className="text-primary">.</span></div>
-      <nav className="flex flex-col gap-1">
-        {items.filter((i) => i.show).map((i) => (
-          <Link key={i.href} href={i.href}
-            className={cn("flex items-center gap-2 rounded-md px-2 py-2 text-sm", (i.href === "/" ? path === "/" : path.startsWith(i.href)) ? "bg-secondary font-medium text-secondary-foreground" : "text-muted-foreground hover:bg-muted")}>
-            <i.icon className="size-4" /> {i.label}
-          </Link>
-        ))}
+    <aside className="sticky top-0 flex h-screen w-58 shrink-0 flex-col bg-forest px-3.5 pt-7 pb-5 text-cream">
+      <Link href="/" className="px-2.5"><Wordmark tone="cream" className="w-[182px]" /></Link>
+      <div className="mt-5 px-2.5 text-[10px] font-bold tracking-wider uppercase">{t.nav.workspace}</div>
+      <div className="mx-2.5 mt-5 border-t border-cream/25" />
+      <div className="mt-5 px-2.5">
+        <div className="text-[15px] font-bold">{tenant}</div>
+      </div>
+      <nav className="mt-7 flex flex-col gap-1.5">
+        {main.filter((i) => i.show).map(item)}
+        {user.role === "admin" && (
+          <>
+            <div className="mt-4 mb-1 px-2.5 text-[10px] font-bold tracking-wider uppercase">{t.nav.admin}</div>
+            {admin.map(item)}
+          </>
+        )}
       </nav>
-      <div className="mt-auto flex flex-col gap-3 border-t px-2 pt-4 text-sm">
-        <div>
-          <div className="font-medium">{user.name}</div>
-          <div className="text-xs text-muted-foreground">{t.roles[user.role]}</div>
+      <div className="mt-auto flex flex-col gap-4 px-2.5">
+        <div className="border-t border-cream/25" />
+        <div className="flex items-center gap-2 text-xs text-cream/80">
+          {t.nav.language}
+          <span className="flex items-center gap-1">
+            {(["en", "es"] as const).map((l, i) => (
+              <span key={l} className="flex items-center gap-1">
+                {i > 0 && "/"}
+                <button onClick={() => setLang(l)} aria-pressed={lang === l} className={cn("uppercase hover:text-cream", lang === l && "font-bold text-cream underline underline-offset-2")}>{l}</button>
+              </span>
+            ))}
+          </span>
         </div>
-        <div className="flex items-center justify-between">
-          <LangSwitch lang={lang} />
-          <button onClick={logout} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><LogOut className="size-3.5" />{t.nav.logout}</button>
+        <div className="flex items-center gap-3 pt-1">
+          <div className="grid size-9 shrink-0 place-items-center rounded-sm bg-cream text-xs font-bold text-forest">{initials(user.name)}</div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-bold">{user.name}</div>
+            <div className="text-xs text-cream/75">{t.roles[user.role]}</div>
+          </div>
+          <button onClick={logout} title={t.nav.logout} aria-label={t.nav.logout} className="rounded-sm p-1.5 text-cream/75 hover:bg-white/10 hover:text-cream"><LogOut className="size-4" /></button>
         </div>
       </div>
     </aside>
