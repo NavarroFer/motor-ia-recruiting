@@ -12,12 +12,12 @@ Plataforma B2B multi-tenant: los reclutadores cargan CVs y buscan candidatos en 
 - Sesión propia: JWT firmado con jose en cookie httpOnly. Roles: admin, recruiter, viewer.
 - Postgres 16 + pgvector en docker-compose; sin DATABASE_URL usa PGlite embebido (con @electric-sql/pglite-pgvector). SQL directo, sin ORM.
 - Cola propia sobre Postgres (tabla jobs, FOR UPDATE SKIP LOCKED). pg-boss no corre sobre PGlite. En producción: SQS.
-- Cliente de Claude por fetch (patrón de ~/src/studio/src/lib/anthropic.ts): thinking disabled + output_config.effort low + tool_choice forzado.
-- Componentes UI copiados de ~/src/qb (shadcn base-nova sobre @base-ui/react). El diseño final viene del Figma del amigo: los tokens viven en src/app/globals.css.
-- Extracción de texto: pdf-parse (PDF) y mammoth (DOCX). OCR/imágenes fuera del MVP.
+- Cliente de Claude por fetch, sin SDK: thinking disabled + output_config.effort low + tool_choice forzado.
+- Componentes UI base: shadcn base-nova sobre @base-ui/react. Diseño World Teams a partir del Figma: los tokens viven en src/app/globals.css.
+- Extracción de texto: unpdf (PDF) y mammoth (DOCX). OCR/imágenes fuera del MVP.
 - Estructuración: Claude Haiku 5.5 (`claude-haiku-5-5`) con tool use forzado y esquema JSON fijo.
 - Embeddings: OpenAI `text-embedding-3-small` (1536 dims), índice HNSW.
-- Front: se maqueta a partir de un Figma estático (brief de 7 pantallas). Animaciones en código.
+- Front: maquetado a partir de un Figma estático (brief de 7 pantallas). Animaciones en código.
 
 ## Pipeline de ingesta (asíncrono)
 1. Upload (zip o archivos) → hash SHA-256 → descartar duplicados exactos → registro `documents` → job en cola.
@@ -57,8 +57,8 @@ Estados por documento: received, extracting, structuring, indexed, queued_budget
 - `docs/costos.py` = modelo de costos de la propuesta; no tocar sin avisar.
 
 ## Estado
-- Hecho: esquema, pipeline, cola, búsqueda híbrida, explicaciones, decisiones con auditoría, admin (API, presupuesto, cola, consumo, usuarios), UI provisoria EN/ES. Build OK y prueba de humo por HTTP OK.
-- Falta: probar con API keys reales (procesar 1 CV + explicaciones IA), aplicar el diseño del Figma.
+- Hecho: esquema, pipeline, cola, búsqueda híbrida con caché e índice HNSW, explicaciones por requisitos (IA a pedido), decisiones con auditoría, vacantes con sugerencias aprendidas de las decisiones, admin (API, presupuesto, cola, consumo, usuarios), diseño World Teams en EN/ES e integraciones con n8n (Slack, Google Meet).
+- Probado con API keys reales (Haiku y embeddings). Benchmark de búsqueda con 100.000 perfiles en docs/benchmark.md.
 
 ## Orden de trabajo original
 1. docker-compose + esquema + seed de usuarios

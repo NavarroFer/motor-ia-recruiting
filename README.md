@@ -3,6 +3,12 @@
 Demo funcional de la propuesta: carga de CVs, extracción y anonimización, estructuración con Claude Haiku,
 búsqueda híbrida (filtros + similitud vectorial), explicaciones y decisión humana auditada.
 
+## Requisitos
+
+- Node 20.9 o superior (lo pide Next 16).
+- Docker, opcional: sin Docker la base corre embebida con PGlite.
+- API keys de Anthropic y OpenAI, solo para usar IA. Sin keys la app funciona con la API apagada.
+
 ## Levantarlo
 
 ```bash
@@ -28,6 +34,7 @@ Si `npm install` se hizo en otra máquina, borrá `node_modules` y reinstalá (h
 - Admin › Consumo y API: activar la API, ver el presupuesto y procesar **un CV por vez** ("Procesar 1 CV ahora").
 - "Procesamiento automático" está apagado por defecto: nada se procesa solo.
 - Embeddings para los 70 precargados (opcional, < USD 0,001): `npm run seed -- --reset --embed`.
+- Verificar las keys antes de la demo: `npm run check:api` (una llamada mínima a cada API, < USD 0,001).
 
 ## Demo sugerida
 
@@ -40,6 +47,12 @@ Si `npm install` se hizo en otra máquina, borrá `node_modules` y reinstalá (h
 5. Editar un requisito, abrir una ficha (contacto visible): la explicación sale por requisitos (0 tokens); "Explicar con IA" pide la narrativa una sola vez y queda cacheada. Repetir la misma búsqueda no gasta: la consulta interpretada y su vector se cachean. Preseleccionar a alguien de "No cumple obligatorios" → pide motivo.
 6. Vacantes › "Senior Python Backend Engineer": preseleccionar 2 candidatos → aparece "Sugeridos por tus elecciones" (perfiles parecidos a los elegidos, sin gastar tokens). Al procesar un CV nuevo que se parezca, la vacante muestra "nuevos parecidos".
 7. Entrar como visualizador → la ficha no muestra contacto y no puede decidir.
+
+## Rendimiento
+
+[docs/benchmark.md](docs/benchmark.md): búsqueda sobre 100.000 perfiles en Postgres + pgvector, p50 de 33 ms y p95 de 46 ms,
+sin gastar en APIs. Para repetirlo con el Postgres de Docker: `npm run bench` (carga los perfiles en un tenant aparte y
+reescribe docs/benchmark.md); `npm run bench -- --drop` lo borra.
 
 ## Slack y Google Meet con n8n (opcional)
 
@@ -73,9 +86,12 @@ src/lib/pipeline/     extracción de texto, anonimización de PII, procesamiento
 src/lib/ai/           cliente Claude (tool use), embeddings y prompts
 src/lib/search.ts     interpretación de la consulta, búsqueda híbrida, explicaciones
 src/lib/usage.ts      registro de consumo, presupuesto e interruptor de la API
-src/app/api/          rutas REST (las consume la UI y el front del Figma)
-src/app/(app)/        pantallas: inicio, búsqueda, carga, admin
-src/components/ui/    componentes base (reutilizados del proyecto qb)
-seed/                 candidatos sintéticos y sus PDFs
-docs/costos.py        modelo de costos de la propuesta
+src/app/api/          rutas REST que consume la UI
+src/app/(app)/        pantallas: inicio, búsqueda, candidatos, vacantes, carga, admin
+src/components/ui/    componentes base (shadcn sobre @base-ui/react)
+seed/                 candidatos sintéticos, vacantes y sus PDFs
+scripts/              seed, generación de CVs, chequeo de API y benchmark
+integrations/n8n/     workflow de Slack y Google Calendar
+docs/costos.py        modelo de costos de la propuesta (npm run costos)
+docs/benchmark.md     resultados del benchmark de búsqueda
 ```
