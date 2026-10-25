@@ -78,6 +78,9 @@ CREATE TABLE IF NOT EXISTS candidate_skills (
   PRIMARY KEY (candidate_id, skill)
 );
 CREATE INDEX IF NOT EXISTS idx_skills_skill ON candidate_skills (skill, years);
+CREATE INDEX IF NOT EXISTS idx_candidates_tenant ON candidates (tenant_id);
+-- Índice vectorial (búsqueda por similitud en milisegundos aunque haya millones de perfiles)
+CREATE INDEX IF NOT EXISTS idx_candidates_embedding ON candidates USING hnsw (embedding vector_cosine_ops);
 
 -- PII separada y cifrada (AES-256-GCM). Solo se descifra al abrir una ficha.
 CREATE TABLE IF NOT EXISTS candidate_pii (
@@ -184,3 +187,24 @@ CREATE TABLE IF NOT EXISTS jobs (
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_pending ON jobs (status, run_after);
+
+-- Caché de la búsqueda (ahorro de tokens): consulta interpretada y vector de la consulta, por texto normalizado
+CREATE TABLE IF NOT EXISTS query_cache (
+  tenant_id  uuid NOT NULL REFERENCES tenants(id),
+  kind       text NOT NULL CHECK (kind IN ('parse','embedding')),
+  key        text NOT NULL,
+  value      jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant_id, kind, key)
+);
+
+-- Explicaciones de IA (solo a pedido), cacheadas por candidato + requisitos + idioma: las reusa cualquier búsqueda equivalente
+CREATE TABLE IF NOT EXISTS ai_explanations (
+  tenant_id    uuid NOT NULL REFERENCES tenants(id),
+  candidate_id uuid NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  req_hash     text NOT NULL,
+  lang         text NOT NULL,
+  text         jsonb NOT NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant_id, candidate_id, req_hash, lang)
+);

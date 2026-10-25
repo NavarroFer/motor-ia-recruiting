@@ -35,7 +35,7 @@ Si `npm install` se hizo en otra máquina, borrá `node_modules` y reinstalá (h
 2. Cargar CVs: subir `seed/cvs/camila-duarte.pdf` (está en castellano) → queda "En espera".
 3. Activar la API → "Procesar 1 CV ahora" → pasa a Indexado en unos segundos; aparece el costo.
 4. Entrar como reclutador → buscar "Python developer with 3+ years in cloud projects and leadership".
-5. Editar un requisito, abrir una ficha (contacto visible), preseleccionar a alguien de "No cumple obligatorios" → pide motivo.
+5. Editar un requisito, abrir una ficha (contacto visible): la explicación sale por requisitos (0 tokens); "Explicar con IA" pide la narrativa una sola vez y queda cacheada. Repetir la misma búsqueda no gasta: la consulta interpretada y su vector se cachean. Preseleccionar a alguien de "No cumple obligatorios" → pide motivo.
 6. Vacantes › "Senior Python Backend Engineer": preseleccionar 2 candidatos → aparece "Sugeridos por tus elecciones" (perfiles parecidos a los elegidos, sin gastar tokens). Al procesar un CV nuevo que se parezca, la vacante muestra "nuevos parecidos".
 7. Entrar como visualizador → la ficha no muestra contacto y no puede decidir.
 

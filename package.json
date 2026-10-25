@@ -11,7 +11,8 @@
     "seed": "tsx scripts/seed.ts",
     "generate:cvs": "tsx scripts/generate-cvs.ts",
     "costos": "python3 docs/costos.py",
-    "check:api": "tsx scripts/check-api.ts"
+    "check:api": "tsx scripts/check-api.ts",
+    "bench": "tsx scripts/bench-search.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

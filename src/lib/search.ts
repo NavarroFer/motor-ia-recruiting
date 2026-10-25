@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { one, q, toVector } from "@/lib/db";
 import { callTool } from "@/lib/ai/anthropic";
 import { embed } from "@/lib/ai/embeddings";
@@ -42,7 +43,7 @@ export interface SearchOutput {
   searchId: string;
   query: string;
   requirements: Requirements;
-  parsedBy: "ai" | "rules";
+  parsedBy: "ai" | "rules" | "cache";
   semantic: boolean;
   durationMs: number;
   results: Result[];
@@ -81,7 +82,34 @@ export function parseWithRules(query: string, knownSkills: string[]): Requiremen
   return { mandatory, nice_to_have: nice, semantic_query: query };
 }
 
-export async function parseQuery(tenantId: string, query: string): Promise<{ req: Requirements; by: "ai" | "rules" }> {
+// ---------- Caché (ahorro de tokens) ----------
+/** "  Python  Developer, 3+ años!! " y "python developer 3+ años" son la misma consulta. */
+export const queryKey = (s: string) => s.toLowerCase().normalize("NFC").replace(/[^\p{L}\p{N}+#.]+/gu, " ").trim();
+const hashOf = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex").slice(0, 32);
+
+async function cacheGet<T>(tenantId: string, kind: "parse" | "embedding", key: string): Promise<T | null> {
+  const row = await one<{ value: T }>("SELECT value FROM query_cache WHERE tenant_id = $1 AND kind = $2 AND key = $3", [tenantId, kind, key]);
+  return row?.value ?? null;
+}
+async function cacheSet(tenantId: string, kind: "parse" | "embedding", key: string, value: unknown) {
+  await q("INSERT INTO query_cache (tenant_id, kind, key, value) VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT DO NOTHING", [tenantId, kind, key, JSON.stringify(value)]);
+}
+
+/** Vector de la consulta: se calcula una sola vez por texto y tenant. */
+async function queryVector(tenantId: string, text: string): Promise<number[] | null> {
+  const key = queryKey(text);
+  const hit = await cacheGet<number[]>(tenantId, "embedding", key);
+  if (hit) return hit;
+  if (!(await canSpend(tenantId)).ok) return null;
+  const v = await embed(text, { tenantId });
+  await cacheSet(tenantId, "embedding", key, v);
+  return v;
+}
+
+export async function parseQuery(tenantId: string, query: string): Promise<{ req: Requirements; by: "ai" | "rules" | "cache" }> {
+  const key = queryKey(query);
+  const hit = await cacheGet<Requirements>(tenantId, "parse", key);
+  if (hit) return { req: hit, by: "cache" };
   const gate = await canSpend(tenantId);
   if (gate.ok) {
     try {
@@ -91,6 +119,7 @@ export async function parseQuery(tenantId: string, query: string): Promise<{ req
       });
       req.mandatory = req.mandatory.map((m) => ({ ...m, skill: m.skill ? norm(m.skill) : m.skill }));
       req.nice_to_have = req.nice_to_have.map((n) => ({ ...n, skill: n.skill ? norm(n.skill) : n.skill }));
+      await cacheSet(tenantId, "parse", key, req);
       return { req, by: "ai" };
     } catch (e) {
       console.error("[search] parse IA falló, uso reglas:", e);
@@ -190,9 +219,9 @@ export async function search(opts: {
   // Vector de la consulta, solo si hay perfiles con embedding y se puede gastar
   let qVector: number[] | null = null;
   const hasEmb = await one<{ n: string }>("SELECT COUNT(*) AS n FROM candidates WHERE tenant_id = $1 AND embedding IS NOT NULL", [opts.tenantId]);
-  if (Number(hasEmb?.n) > 0 && (await canSpend(opts.tenantId)).ok) {
+  if (Number(hasEmb?.n) > 0) {
     try {
-      qVector = await embed(req.semantic_query || opts.query, { tenantId: opts.tenantId });
+      qVector = await queryVector(opts.tenantId, req.semantic_query || opts.query);
     } catch (e) {
       console.error("[search] embedding falló, sigo sin semántica:", e);
     }
@@ -252,35 +281,71 @@ export async function search(opts: {
   return { searchId: searchId!, query: opts.query, requirements: req, parsedBy: parsed.by, semantic: !!qVector, durationMs, results, notMeeting };
 }
 
-// ---------- 4. Explicación (asíncrona, cacheada) ----------
-export async function explain(opts: { tenantId: string; searchId: string; candidateId: string; lang: "en" | "es" }): Promise<Explanation & { by: "ai" | "rules" | "cache" }> {
-  const cached = await one<{ text: Explanation }>("SELECT text FROM explanations WHERE search_id = $1 AND candidate_id = $2", [opts.searchId, opts.candidateId]);
-  if (cached) return { ...cached.text, by: "cache" };
+// ---------- 4. Explicación ----------
+// Por defecto se arma con los requisitos evaluados y la evidencia del CV: 0 tokens, instantánea y auditable
+// (sale de los mismos datos que el score). La IA solo se llama a pedido ("Explicar con IA") y se cachea por
+// candidato + requisitos + idioma, así la reusa cualquier búsqueda equivalente o la misma vacante.
+type ExplainBy = "ai" | "rules" | "cache";
 
-  const s = await one<{ query: string; requirements: Requirements }>("SELECT query, requirements FROM searches WHERE id = $1 AND tenant_id = $2", [opts.searchId, opts.tenantId]);
-  const c = await one<{ profile_json: unknown; leadership: { evidence: string }[] }>(
-    "SELECT profile_json, leadership FROM candidates WHERE id = $1 AND tenant_id = $2",
-    [opts.candidateId, opts.tenantId],
+async function loadCand(tenantId: string, candidateId: string) {
+  const [c] = await q<CandRow & { profile_json: unknown; ev: { skill: string; evidence: string | null }[] | null }>(
+    `SELECT c.id, c.headline, c.seniority, c.total_years, c.country, c.work_mode, c.summary, c.leadership, c.languages, c.profile_json,
+            (SELECT json_agg(json_build_object('skill', s.skill, 'years', s.years) ORDER BY s.years DESC) FROM candidate_skills s WHERE s.candidate_id = c.id) AS skills,
+            (SELECT json_agg(json_build_object('skill', s.skill, 'evidence', s.evidence)) FROM candidate_skills s WHERE s.candidate_id = c.id) AS ev,
+            NULL::float8 AS distance
+       FROM candidates c WHERE c.id = $1 AND c.tenant_id = $2`,
+    [candidateId, tenantId],
   );
+  return c ?? null;
+}
+
+function rulesExplanation(c: NonNullable<Awaited<ReturnType<typeof loadCand>>>, req: Requirements, lang: "en" | "es"): Explanation {
+  const checks = [
+    ...req.mandatory.map((r) => check(c, r, true)),
+    ...req.nice_to_have.map((r) => check(c, { type: "skill", skill: r.skill ?? r.label, label: r.label }, false)),
+  ];
+  const evidenceOf = (label: string, skill?: string) => {
+    const k = skill ? norm(skill) : "";
+    const pool = GROUPS[k] ?? [k];
+    return (c.ev ?? []).find((e) => pool.includes(e.skill) && e.evidence)?.evidence ?? null;
+  };
+  const reqs = [...req.mandatory, ...req.nice_to_have];
+  const match = checks.filter((x) => x.status === "met").slice(0, 3).map((x) => {
+    const r = reqs.find((y) => y.label === x.label);
+    const ev = r?.skill && !LEADERSHIP.includes(norm(r.skill)) ? evidenceOf(x.label, r.skill) : null;
+    return ev ? `${x.label} · ${x.detail} — “${ev}”` : `${x.label} · ${x.detail}`;
+  });
+  const missing = lang === "es" ? "sin evidencia en el CV" : "no evidence in the CV";
+  const gaps = checks.filter((x) => x.status !== "met").slice(0, 2).map((x) =>
+    x.detail.endsWith("—") || x.detail === "—" ? `${x.label}: ${missing}` : `${x.label} · ${x.detail}`);
+  return { match, gaps, summary: c.summary ?? "" };
+}
+
+export async function explain(opts: { tenantId: string; searchId: string; candidateId: string; lang: "en" | "es"; ai?: boolean }): Promise<Explanation & { by: ExplainBy }> {
+  const s = await one<{ requirements: Requirements; query: string }>("SELECT query, requirements FROM searches WHERE id = $1 AND tenant_id = $2", [opts.searchId, opts.tenantId]);
+  const c = await loadCand(opts.tenantId, opts.candidateId);
   if (!s || !c) throw new Error("Búsqueda o candidato inexistente");
 
-  let out: Explanation;
-  let by: "ai" | "rules" = "rules";
-  if ((await canSpend(opts.tenantId)).ok) {
-    // Al modelo va el perfil ANONIMIZADO (profile_json nunca tiene PII)
-    out = await callTool<Explanation>({
-      tenantId: opts.tenantId, kind: "explain", searchId: opts.searchId,
-      system: EXPLAIN_SYSTEM, tool: EXPLAIN_TOOL, maxTokens: 350,
-      content: [{ type: "text", text: `Language: ${opts.lang === "es" ? "Spanish" : "English"}\nSearch: ${s.query}\nRequirements: ${JSON.stringify(s.requirements)}\nCandidate profile: ${JSON.stringify(c.profile_json)}` }],
-    });
-    by = "ai";
-  } else {
-    // Sin IA: explicación armada con los requisitos evaluados
-    const prof = c.profile_json as { summary?: string };
-    out = { match: [], gaps: [], summary: prof.summary ?? "" };
-  }
-  await q("INSERT INTO explanations (search_id, candidate_id, text) VALUES ($1,$2,$3::jsonb) ON CONFLICT DO NOTHING", [opts.searchId, opts.candidateId, JSON.stringify(out)]);
-  return { ...out, by };
+  const rules = rulesExplanation(c, s.requirements, opts.lang);
+  if (!opts.ai) return { ...rules, by: "rules" };
+
+  const reqHash = hashOf({ m: s.requirements.mandatory, n: s.requirements.nice_to_have });
+  const cached = await one<{ text: Explanation }>(
+    "SELECT text FROM ai_explanations WHERE tenant_id = $1 AND candidate_id = $2 AND req_hash = $3 AND lang = $4",
+    [opts.tenantId, opts.candidateId, reqHash, opts.lang],
+  );
+  if (cached) return { ...cached.text, by: "cache" };
+  if (!(await canSpend(opts.tenantId)).ok) return { ...rules, by: "rules" };
+
+  // Al modelo va el perfil ANONIMIZADO (profile_json nunca tiene PII)
+  const out = await callTool<Explanation>({
+    tenantId: opts.tenantId, kind: "explain", searchId: opts.searchId,
+    system: EXPLAIN_SYSTEM, tool: EXPLAIN_TOOL, maxTokens: 350,
+    content: [{ type: "text", text: `Language: ${opts.lang === "es" ? "Spanish" : "English"}\nRequirements: ${JSON.stringify({ mandatory: s.requirements.mandatory, nice_to_have: s.requirements.nice_to_have })}\nCandidate profile: ${JSON.stringify(c.profile_json)}` }],
+  });
+  await q("INSERT INTO ai_explanations (tenant_id, candidate_id, req_hash, lang, text) VALUES ($1,$2,$3,$4,$5::jsonb) ON CONFLICT DO NOTHING",
+    [opts.tenantId, opts.candidateId, reqHash, opts.lang, JSON.stringify(out)]);
+  return { ...out, by: "ai" };
 }
 
 // ---------- 5. Match inverso: para qué vacantes abiertas encaja un candidato ----------

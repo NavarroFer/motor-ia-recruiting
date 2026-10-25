@@ -17,6 +17,11 @@ async function connect(): Promise<Db> {
   if (url) {
     const { Pool } = await import("pg");
     const pool = new Pool({ connectionString: url, max: 10 });
+    // La búsqueda pide los 200 más cercanos: HNSW devuelve como máximo ef_search (40 por defecto).
+    // iterative_scan (pgvector 0.8+) sigue buscando cuando el filtro por tenant descarta resultados.
+    pool.on("connect", (c) => {
+      c.query("SET hnsw.ef_search = 200; SET hnsw.iterative_scan = relaxed_order").catch(() => {});
+    });
     return pool as unknown as Db;
   }
   // Sin DATABASE_URL: Postgres embebido (PGlite) con pgvector, persistido en ./.data
