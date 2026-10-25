@@ -1,17 +1,16 @@
 import Link from "next/link";
 import { ArrowUpRight, Plus } from "lucide-react";
 import { can, requireUser } from "@/lib/auth";
-import { one, q } from "@/lib/db";
+import { one } from "@/lib/db";
 import { getDict } from "@/lib/i18n";
 import { budgetStatus } from "@/lib/usage";
+import { recentSearches } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PageHeader } from "@/components/app/page-header";
 import { Illo } from "@/components/brand/brand";
-
-interface RecentRow { id: string; query: string; result_count: number; created_at: string | Date; opening_id: string | null; shortlisted: string | number }
 
 const fill = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
 // Conserva la precisión de los gastos menores a un centavo.
@@ -38,21 +37,7 @@ export default async function Dashboard() {
       [tid],
     ),
     budgetStatus(tid),
-    // Una fila por búsqueda (misma consulta o misma vacante = la misma búsqueda), con la última corrida
-    // y los preseleccionados acumulados entre todas sus corridas.
-    q<RecentRow>(
-      `WITH s AS (
-         SELECT id, query, result_count, created_at, opening_id, COALESCE(opening_id::text, lower(btrim(query))) AS k
-           FROM searches WHERE tenant_id = $1
-       ), latest AS (
-         SELECT DISTINCT ON (k) * FROM s ORDER BY k, created_at DESC
-       )
-       SELECT l.id, l.query, l.result_count, l.created_at, l.opening_id,
-              (SELECT COUNT(DISTINCT d.candidate_id) FROM decisions d JOIN s s2 ON s2.id = d.search_id
-                WHERE s2.k = l.k AND d.status = 'shortlisted') AS shortlisted
-         FROM latest l ORDER BY l.created_at DESC LIMIT 5`,
-      [tid],
-    ),
+    recentSearches(tid, 5),
   ]);
 
   const num = (v: unknown) => Number(v ?? 0);
@@ -139,17 +124,17 @@ export default async function Dashboard() {
             {recent.map((s, i) => (
               <Link
                 key={s.id}
-                href={s.opening_id ? `/openings/${s.opening_id}` : `/search?q=${encodeURIComponent(s.query)}`}
+                href={s.openingId ? `/openings/${s.openingId}` : `/search?q=${encodeURIComponent(s.query)}`}
                 className="group grid animate-wt-enter grid-cols-[minmax(0,1fr)_170px_120px_110px] items-start gap-4 border-b py-5 transition-colors last:border-b-0 hover:bg-paper focus-visible:outline-2 focus-visible:outline-primary"
                 style={{ animationDelay: `${460 + i * 60}ms` }}
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-[15px] font-bold group-hover:text-primary">{s.query}</span>
-                  {s.opening_id && <Badge variant="muted" className="shrink-0">{t.dash.vacancyTag}</Badge>}
+                  {s.openingId && <Badge variant="muted" className="shrink-0">{t.dash.vacancyTag}</Badge>}
                 </span>
-                <span className="text-[13px] text-muted-foreground">{when(s.created_at)}</span>
-                <span className="font-bold tabular-nums">{num(s.result_count)}</span>
-                <span className="font-bold tabular-nums">{num(s.shortlisted)}</span>
+                <span className="text-[13px] text-muted-foreground">{when(s.createdAt)}</span>
+                <span className="font-bold tabular-nums">{s.resultCount}</span>
+                <span className="font-bold tabular-nums">{s.shortlisted}</span>
               </Link>
             ))}
           </div>

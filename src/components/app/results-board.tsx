@@ -191,7 +191,7 @@ export function ResultsBoard({ data, t, lang, canDecide, locked, openingId, empt
 
       {data.results.length === 0 ? (emptyState ?? <NoResults t={t} />) : (
         <>
-          <div role="tablist" aria-label={t.search.decision} className="flex gap-x-10 overflow-x-auto border-b sm:gap-x-16">
+          <div role="tablist" aria-label={t.search.decision} className="flex gap-x-10 overflow-x-auto border-b min-[1400px]:gap-x-16">
             {(["all", "shortlisted", "selected", "discarded"] as const).map((k) => (
               <button
                 key={k}
@@ -208,7 +208,7 @@ export function ResultsBoard({ data, t, lang, canDecide, locked, openingId, empt
             ))}
           </div>
 
-          <div className="flex flex-col gap-4" role="tabpanel">
+          <div className="@container flex flex-col gap-4" role="tabpanel">
             {shown.length === 0 && (
               <p className="animate-wt-fade rounded-lg border border-dashed px-5 py-8 text-center text-sm text-muted-foreground">{t.search.tabEmpty}</p>
             )}
@@ -440,11 +440,11 @@ function ResultCard({ r, index, t, lang, name, avatar, expl, decision, interview
   const mode = r.workMode && r.workMode !== "unknown" ? r.workMode : null;
   return (
     <article
-      className="grid animate-wt-enter gap-5 rounded-lg border bg-card p-5 transition-shadow hover:shadow-[0_2px_10px_-4px_rgb(4_61_50/0.18)] md:grid-cols-[minmax(0,1fr)_15rem]"
+      className="grid animate-wt-enter gap-5 rounded-lg border bg-card p-5 transition-shadow hover:shadow-[0_2px_10px_-4px_rgb(4_61_50/0.18)] @2xl:grid-cols-[minmax(0,1fr)_15rem]"
       style={{ animationDelay: `${Math.min(index, 8) * 70}ms` }}
     >
       <div className="flex min-w-0 flex-col gap-4">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,19rem)]">
+        <div className="grid gap-4 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,19rem)]">
           <div className="flex min-w-0 gap-3.5">
             <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-xs font-bold text-primary">{avatar}</span>
             <div className="min-w-0">
@@ -496,7 +496,7 @@ function ResultCard({ r, index, t, lang, name, avatar, expl, decision, interview
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-t pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-5">
+      <div className="flex flex-col gap-3 border-t pt-4 @2xl:border-t-0 @2xl:border-l @2xl:pt-0 @2xl:pl-5">
         <ScoreBlock score={r.score} t={t} />
         <DecisionChip decision={decision} t={t} />
         {decision === "selected" && interview && <InterviewLine when={interview} t={t} />}

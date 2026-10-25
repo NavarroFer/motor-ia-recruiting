@@ -284,6 +284,31 @@ export async function search(opts: {
   return { searchId: searchId!, query: opts.query, requirements: req, parsedBy: parsed.by, semantic: !!qVector, durationMs, results, notMeeting };
 }
 
+// ---------- Búsquedas recientes ----------
+export interface RecentSearch { id: string; query: string; resultCount: number; createdAt: string; openingId: string | null; shortlisted: number }
+
+/** Una fila por búsqueda (misma consulta o misma vacante = la misma búsqueda), con la última corrida
+ *  y los preseleccionados acumulados entre todas sus corridas. */
+export async function recentSearches(tenantId: string, limit: number): Promise<RecentSearch[]> {
+  const rows = await q<{ id: string; query: string; result_count: number; created_at: string | Date; opening_id: string | null; shortlisted: string | number }>(
+    `WITH s AS (
+       SELECT id, query, result_count, created_at, opening_id, COALESCE(opening_id::text, lower(btrim(query))) AS k
+         FROM searches WHERE tenant_id = $1
+     ), latest AS (
+       SELECT DISTINCT ON (k) * FROM s ORDER BY k, created_at DESC
+     )
+     SELECT l.id, l.query, l.result_count, l.created_at, l.opening_id,
+            (SELECT COUNT(DISTINCT d.candidate_id) FROM decisions d JOIN s s2 ON s2.id = d.search_id
+              WHERE s2.k = l.k AND d.status = 'shortlisted') AS shortlisted
+       FROM latest l ORDER BY l.created_at DESC LIMIT $2`,
+    [tenantId, limit],
+  );
+  return rows.map((r) => ({
+    id: r.id, query: r.query, resultCount: Number(r.result_count ?? 0), createdAt: new Date(r.created_at).toISOString(),
+    openingId: r.opening_id, shortlisted: Number(r.shortlisted ?? 0),
+  }));
+}
+
 // ---------- 4. Explicación ----------
 // Por defecto se arma con los requisitos evaluados y la evidencia del CV: 0 tokens, instantánea y auditable
 // (sale de los mismos datos que el score). La IA solo se llama a pedido ("Explicar con IA") y se cachea por
