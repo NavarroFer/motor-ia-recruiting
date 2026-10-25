@@ -1,12 +1,14 @@
 // Candidatos SINTÉTICOS (no son personas reales). Una sola fuente para:
-//  - los PDFs de seed/cvs (scripts/generate-cvs.ts)
+//  - los PDFs de seed/cvs (scripts/generate-cvs.ts); los de la demo en vivo van a seed/cvs/en-vivo
 //  - los perfiles precargados (scripts/seed.ts), equivalentes a lo que devolvería el pipeline.
+// Los escritos a mano están acá; el volumen sale de seed/generated.ts (semilla fija).
 import type { ExtractedProfile } from "@/lib/ai/prompts";
+import { generatePersonas } from "./generated";
 
 export interface Persona {
   slug: string;
   seeded: boolean; // false = se procesa en vivo en la demo
-  lang: "en" | "es";
+  lang: "en" | "es" | "pt";
   pii: { name: string; email: string; phone: string; linkedin: string; location: string };
   cv: {
     title: string;
@@ -21,7 +23,7 @@ export interface Persona {
 
 const sk = (pairs: [string, number, string?][]) => pairs.map(([name, years, evidence]) => ({ name, years, evidence }));
 
-export const PERSONAS: Persona[] = [
+const HANDWRITTEN: Persona[] = [
   {
     slug: "valentina-rios", seeded: true, lang: "en",
     pii: { name: "Valentina Rios", email: "valentina.rios@example.com", phone: "+54 223 555 0141", linkedin: "linkedin.com/in/valentina-rios-dev", location: "Mar del Plata, Argentina" },
@@ -322,4 +324,70 @@ export const PERSONAS: Persona[] = [
       languages: "English (native)",
     },
   },
+  {
+    // En portugués: muestra la normalización a inglés. Encaja con "Data Engineer — GCP".
+    slug: "joao-pereira", seeded: false, lang: "pt",
+    pii: { name: "João Pereira", email: "joao.pereira.dados@example.com", phone: "+55 11 95555 0187", linkedin: "linkedin.com/in/joaopereira-dados", location: "São Paulo, Brasil" },
+    cv: {
+      title: "Engenheiro de Dados Sênior",
+      summary: "Engenheiro de dados com 6 anos construindo pipelines em Python no Google Cloud (BigQuery, Dataflow) para varejo e logística.",
+      experience: [
+        { title: "Engenheiro de Dados Sênior", company: "Varejo Mais", start: "2022-05", end: "present", bullets: ["Construí pipelines batch e streaming em Python com Apache Beam no Dataflow, carregando 1 bilhão de eventos por dia no BigQuery.", "Orquestro mais de 60 DAGs no Airflow (Cloud Composer).", "Mentoria de dois engenheiros de dados júnior."] },
+        { title: "Analista de Dados", company: "LogBR", start: "2020-02", end: "2022-04", bullets: ["Modelagem em SQL e dashboards de entregas.", "Migração de relatórios do Excel para o BigQuery."] },
+      ],
+      skills: "Python, SQL, GCP (BigQuery, Dataflow, Pub/Sub, Cloud Composer), Apache Beam, Airflow, dbt",
+      education: ["Bacharelado em Ciência da Computação — Universidade Federal de Pernambuco, 2019"],
+      languages: "Português (nativo), Inglês (C1), Espanhol (B2)",
+    },
+  },
+  {
+    // Encaja con "Frontend Engineer (React)": React + TypeScript + accesibilidad.
+    slug: "sarah-mitchell", seeded: false, lang: "en",
+    pii: { name: "Sarah Mitchell", email: "sarah.mitchell.ui@example.com", phone: "+1 416 555 0164", linkedin: "linkedin.com/in/sarahmitchell-frontend", location: "Toronto, ON, Canada" },
+    cv: {
+      title: "Senior Frontend Engineer",
+      summary: "Frontend engineer with 6 years building React and TypeScript design systems, with a focus on accessibility (WCAG 2.1 AA).",
+      experience: [
+        { title: "Senior Frontend Engineer", company: "Northwind Health", start: "2022-01", end: "present", bullets: ["Own the React + TypeScript design system used by 9 product teams (60+ components in Storybook).", "Led the accessibility program: audits, screen reader testing and WCAG 2.1 AA fixes across patient flows.", "Introduced visual regression tests and cut UI bugs by 35%."] },
+        { title: "Frontend Developer", company: "Brightcart", start: "2019-06", end: "2021-12", bullets: ["Built checkout and account pages in React.", "Migrated the codebase from JavaScript to TypeScript."] },
+      ],
+      skills: "React, TypeScript, Next.js, CSS, Storybook, Accessibility (WCAG, ARIA), Jest, Testing Library",
+      education: ["B.Sc. in Computer Science — York University, 2019"],
+      languages: "English (native), French (B2)",
+    },
+  },
+  {
+    // Segundo match fuerte para "Senior Python Backend Engineer": Python + AWS + PostgreSQL + liderazgo.
+    slug: "aisha-bello", seeded: false, lang: "en",
+    pii: { name: "Aisha Bello", email: "aisha.bello.dev@example.com", phone: "+234 803 555 0112", linkedin: "linkedin.com/in/aishabello-backend", location: "Lagos, Nigeria" },
+    cv: {
+      title: "Senior Backend Engineer",
+      summary: "Backend engineer with 8 years building Python and Django services on AWS for fintech. Leads the payments squad and mentors engineers.",
+      experience: [
+        { title: "Senior Backend Engineer / Squad Lead", company: "Kudi Ledger", start: "2021-09", end: "present", bullets: ["Lead a squad of 5 engineers building payment reconciliation services in Python (Django, Celery) on AWS (ECS, RDS, SQS).", "Designed the PostgreSQL ledger schema that handles 2 million transactions per day.", "Run interviews and onboarding for new backend hires."] },
+        { title: "Backend Engineer", company: "SwiftMart", start: "2018-03", end: "2021-08", bullets: ["Built order and delivery APIs in Python and PostgreSQL.", "Moved batch jobs to AWS Lambda."] },
+      ],
+      skills: "Python, Django, Celery, AWS (ECS, RDS, SQS, Lambda), PostgreSQL, Redis, Docker",
+      education: ["B.Eng. in Computer Engineering — University of Lagos, 2017"],
+      languages: "English (fluent), Yoruba (native)",
+    },
+  },
+  {
+    // En castellano. Cumple "python ≥ 3" pero es SRE: el ranking semántico lo ubica debajo de los backend.
+    slug: "tomas-herrera", seeded: false, lang: "es",
+    pii: { name: "Tomás Herrera", email: "tomas.herrera.sre@example.com", phone: "+54 351 555 0176", linkedin: "linkedin.com/in/tomasherrera-sre", location: "Córdoba, Argentina" },
+    cv: {
+      title: "Ingeniero SRE Senior",
+      summary: "Ingeniero de confiabilidad con 7 años operando plataformas en Kubernetes sobre AWS. Automatizo con Python y Terraform.",
+      experience: [
+        { title: "Ingeniero SRE Senior", company: "Pagos del Centro", start: "2021-04", end: "present", bullets: ["Opero 4 clústeres de Kubernetes (EKS) con más de 120 servicios y una disponibilidad de 99,95%.", "Escribí herramientas internas en Python para automatizar despliegues y rotación de secretos.", "Definí SLOs y alertas con Prometheus y Grafana; coordino la guardia de un equipo de 4 personas."] },
+        { title: "Administrador de Sistemas", company: "Telecom Serrana", start: "2018-02", end: "2021-03", bullets: ["Administración de servidores Linux y migración a AWS con Terraform.", "Scripts de automatización en Bash y Python."] },
+      ],
+      skills: "Kubernetes, AWS (EKS, EC2, IAM), Terraform, Python, Prometheus, Grafana, Linux, Docker",
+      education: ["Ingeniería en Sistemas de Información — Universidad Tecnológica Nacional (Córdoba), 2017"],
+      languages: "Español (nativo), Inglés (B2)",
+    },
+  },
 ];
+
+export const PERSONAS: Persona[] = [...HANDWRITTEN, ...generatePersonas(60, new Set(HANDWRITTEN.map((p) => p.slug)))];

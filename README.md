@@ -13,8 +13,8 @@ npm install
 docker compose up -d
 # Opción B: sin Docker → borrá la línea DATABASE_URL de .env.local y usa PGlite embebido (./.data)
 
-npm run generate:cvs           # 12 CVs sintéticos en seed/cvs
-npm run seed -- --reset        # cliente demo, 3 usuarios y 10 candidatos precargados
+npm run generate:cvs           # 76 CVs sintéticos: 70 para precargar (seed/cvs) y 6 para la demo (seed/cvs/en-vivo)
+npm run seed -- --reset        # cliente demo, 3 usuarios, 70 candidatos precargados y 3 vacantes
 npm run dev                    # http://localhost:3000
 ```
 
@@ -27,12 +27,14 @@ Si `npm install` se hizo en otra máquina, borrá `node_modules` y reinstalá (h
 - La app arranca con la **API apagada**: no se llama a ningún modelo. La búsqueda igual funciona, con reglas.
 - Admin › Consumo y API: activar la API, ver el presupuesto y procesar **un CV por vez** ("Procesar 1 CV ahora").
 - "Procesamiento automático" está apagado por defecto: nada se procesa solo.
-- Embeddings para los 10 precargados (opcional, < USD 0,001): `npm run seed -- --reset --embed`.
+- Embeddings para los 70 precargados (opcional, < USD 0,001): `npm run seed -- --reset --embed`.
 
 ## Demo sugerida
 
 1. Admin › Consumo y API: mostrar la API apagada, el presupuesto y la cola.
-2. Cargar CVs: subir `seed/cvs/camila-duarte.pdf` (está en castellano) → queda "En espera".
+2. Cargar CVs: subir `seed/cvs/en-vivo/camila-duarte.pdf` (está en castellano) o `seed/cvs/en-vivo.zip` con los 6 → quedan "En espera".
+   Los 6: camila-duarte (castellano, Python/GCP), aisha-bello (Python/AWS), joao-pereira (portugués, Data Engineer GCP),
+   sarah-mitchell (Frontend React), tomas-herrera (castellano, SRE) y ryan-oconnor (QA, no cumple obligatorios).
 3. Activar la API → "Procesar 1 CV ahora" → pasa a Indexado en unos segundos; aparece el costo.
 4. Entrar como reclutador → buscar "Python developer with 3+ years in cloud projects and leadership".
 5. Editar un requisito, abrir una ficha (contacto visible): la explicación sale por requisitos (0 tokens); "Explicar con IA" pide la narrativa una sola vez y queda cacheada. Repetir la misma búsqueda no gasta: la consulta interpretada y su vector se cachean. Preseleccionar a alguien de "No cumple obligatorios" → pide motivo.
@@ -61,7 +63,7 @@ docker compose exec n8n n8n import:workflow --input=/files/decisiones-slack-cale
    Para la demo, `CANDIDATE_EMAIL_OVERRIDE=<casilla>` redirige las invitaciones (los candidatos sintéticos tienen emails falsos).
    Tiene que ser distinta de la cuenta de Google conectada en n8n: Google no le manda invitación al organizador.
 3. Para ver el aviso de CV nuevo: la vacante necesita 2 elegidos con vector (`npm run seed -- --reset --embed`, preseleccionar 2
-   en "Senior Python Backend Engineer") y después procesar `camila-duarte.pdf` en vivo.
+   en "Senior Python Backend Engineer") y después procesar `seed/cvs/en-vivo/camila-duarte.pdf` (o aisha-bello) en vivo.
 
 ## Estructura
 

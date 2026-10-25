@@ -48,7 +48,7 @@ Estados por documento: received, extracting, structuring, indexed, queued_budget
 - Límites: max_tokens 1000, CV truncado a 12.000 tokens, 10 explicaciones por búsqueda.
 
 ## Datos
-- seed/personas.ts: 12 candidatos sintéticos. Generan los PDFs (npm run generate:cvs) y los perfiles precargados (npm run seed). 10 se precargan; camila-duarte (en castellano) y ryan-oconnor se procesan en vivo.
+- seed/personas.ts: 16 candidatos sintéticos escritos a mano + 60 generados con semilla fija (seed/generated.ts). Generan los PDFs (npm run generate:cvs) y los perfiles precargados (npm run seed). 70 se precargan; 6 se procesan en vivo desde seed/cvs/en-vivo (también en seed/cvs/en-vivo.zip): camila-duarte, aisha-bello, joao-pereira (portugués), sarah-mitchell, tomas-herrera y ryan-oconnor.
 - Un tenant demo y 3 usuarios (admin/recruiter/viewer).
 
 ## Reglas

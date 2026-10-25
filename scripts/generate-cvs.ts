@@ -1,16 +1,21 @@
-// Genera los CVs sintéticos en PDF (seed/cvs/*.pdf) a partir de seed/personas.ts.
-import { mkdirSync, writeFileSync } from "node:fs";
+// Genera los CVs sintéticos en PDF a partir de seed/personas.ts:
+//  - seed/cvs/*.pdf: los que precarga el seed
+//  - seed/cvs/en-vivo/*.pdf y seed/cvs/en-vivo.zip: los que se suben y procesan en la demo
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import JSZip from "jszip";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { PERSONAS, type Persona } from "../seed/personas";
 
 const OUT = path.join(process.cwd(), "seed", "cvs");
+const LIVE = path.join(OUT, "en-vivo");
 const W = 595, H = 842, M = 56;
 const INK = rgb(0.08, 0.09, 0.12), MUTED = rgb(0.33, 0.36, 0.42), ACCENT = rgb(0.18, 0.36, 0.92);
 
 const L = {
   en: { summary: "Summary", experience: "Experience", skills: "Skills", education: "Education", languages: "Languages", present: "Present" },
   es: { summary: "Perfil", experience: "Experiencia", skills: "Habilidades", education: "Formación", languages: "Idiomas", present: "Actualidad" },
+  pt: { summary: "Resumo", experience: "Experiência", skills: "Competências", education: "Formação", languages: "Idiomas", present: "Atual" },
 };
 
 function wrap(text: string, font: PDFFont, size: number, width: number): string[] {
@@ -27,7 +32,7 @@ function wrap(text: string, font: PDFFont, size: number, width: number): string[
   return lines;
 }
 
-function fmt(d: string, lang: "en" | "es") {
+function fmt(d: string, lang: Persona["lang"]) {
   if (d === "present") return L[lang].present;
   const [y, m] = d.split("-");
   return `${m}/${y}`;
@@ -36,6 +41,9 @@ function fmt(d: string, lang: "en" | "es") {
 async function render(p: Persona): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`CV - ${p.pii.name}`);
+  // Fechas fijas: regenerar produce los mismos bytes (y el mismo hash para la deduplicación)
+  doc.setCreationDate(new Date("2026-10-01T00:00:00Z"));
+  doc.setModificationDate(new Date("2026-10-01T00:00:00Z"));
   const reg = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   let page: PDFPage = doc.addPage([W, H]);
@@ -84,8 +92,16 @@ async function render(p: Persona): Promise<Uint8Array> {
   return doc.save();
 }
 
-mkdirSync(OUT, { recursive: true });
+rmSync(LIVE, { recursive: true, force: true });
+mkdirSync(LIVE, { recursive: true });
+const zip = new JSZip();
 for (const p of PERSONAS) {
-  writeFileSync(path.join(OUT, `${p.slug}.pdf`), await render(p));
-  console.log(`✓ ${p.slug}.pdf${p.seeded ? "" : "  (para procesar en vivo)"}`);
+  const pdf = await render(p);
+  writeFileSync(path.join(p.seeded ? OUT : LIVE, `${p.slug}.pdf`), pdf);
+  if (!p.seeded) zip.file(`${p.slug}.pdf`, pdf, { date: new Date("2026-10-01T00:00:00Z") });
 }
+writeFileSync(path.join(OUT, "en-vivo.zip"), await zip.generateAsync({ type: "uint8array" }));
+const live = PERSONAS.filter((p) => !p.seeded);
+console.log(`✓ ${PERSONAS.length - live.length} CVs para precargar en seed/cvs`);
+console.log(`✓ ${live.length} CVs para la demo en vivo en seed/cvs/en-vivo (y todos juntos en seed/cvs/en-vivo.zip):`);
+for (const p of live) console.log(`   ${p.slug}.pdf (${p.lang})`);
